@@ -262,6 +262,17 @@ export interface EventDetails extends Event {
   topSprayers?: TopSprayer[];
 }
 
+export interface SprayActivityResponse {
+  sprays: SprayActivity[];
+  pagination: Pagination;
+}
+
+export interface TopSprayersResponse {
+  eventId: string;
+  eventTitle: string;
+  leaderboard: TopSprayer[];
+}
+
 export interface Performer {
   id: string;
   name: string;
@@ -281,8 +292,12 @@ export interface SprayActivity {
 export interface TopSprayer {
   userId: string;
   user?: User;
-  amount: string;
+  totalAmount: string;
+  amount?: string; // Keep for backward compatibility
   rank: number;
+  sprayCount?: number;
+  firstSprayAt?: string;
+  lastSprayAt?: string;
 }
 
 // Transaction Types (assumed)
@@ -312,6 +327,28 @@ export interface TransactionDetails extends Transaction {
   fees: string;
   netAmount: string;
   description?: string;
+}
+
+// Withdrawal Types
+export interface Withdrawal {
+  id: string;
+  userId: string;
+  user?: User;
+  amount: string;
+  status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'REJECTED' | 'REVERSED';
+  date: string;
+  createdAt: string;
+  bankAccount?: {
+    accountNumber: string;
+    bankName: string;
+    accountName: string;
+  };
+}
+
+export interface WithdrawalsResponse {
+  withdrawals?: Withdrawal[];
+  payouts?: Withdrawal[];
+  pagination: Pagination;
 }
 
 // Notifications Types (assumed)

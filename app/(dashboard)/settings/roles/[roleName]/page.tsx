@@ -15,6 +15,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { inviteUserSchema } from '@/lib/utils/validation';
 import { adminsApi } from '@/lib/api/admins';
+import type { AdminDetails } from '@/lib/types/api';
 
 export default function RoleDetailsPage() {
   const params = useParams();
@@ -47,7 +48,7 @@ export default function RoleDetailsPage() {
     }
   };
 
-  const admins = roleData?.admins || [];
+  const admins: AdminDetails[] = roleData?.admins || [];
 
   return (
     <div className="space-y-6">

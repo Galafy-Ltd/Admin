@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { notificationsApi } from '@/lib/api/notifications';
+import type { Notification } from '@/lib/types/api';
 
 export default function NotificationsPage() {
   const { data: notificationsData, isLoading } = useQuery({
@@ -13,7 +14,7 @@ export default function NotificationsPage() {
     queryFn: () => notificationsApi.getNotifications({ limit: 20 }),
   });
 
-  const notifications = notificationsData?.notifications || [];
+  const notifications: Notification[] = notificationsData?.notifications || [];
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {

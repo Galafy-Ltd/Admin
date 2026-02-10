@@ -11,6 +11,7 @@ import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { analyticsApi } from '@/lib/api/analytics';
 import { eventsApi } from '@/lib/api/events';
 import { dashboardApi } from '@/lib/api/dashboard';
+import type { Event } from '@/lib/types/api';
 
 export default function DashboardPage() {
   const { data: analytics } = useQuery({
@@ -36,7 +37,7 @@ export default function DashboardPage() {
     pendingKYC: dashboardMetrics?.pendingKyc ?? 0,
   };
 
-  const topEvents = eventsData?.events?.slice(0, 4) || [];
+  const topEvents: Event[] = eventsData?.events?.slice(0, 4) || [];
 
   return (
     <div className="space-y-6">

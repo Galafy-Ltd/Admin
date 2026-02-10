@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/Select';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency, formatTier } from '@/lib/utils/format';
 import { usersApi } from '@/lib/api/users';
+import type { User } from '@/lib/types/api';
 
 export default function UsersPage() {
   const [search, setSearch] = useState('');
@@ -36,7 +37,7 @@ export default function UsersPage() {
       }),
   });
 
-  const users = usersData?.users || [];
+  const users: User[] = usersData?.users || [];
   const pagination = usersData?.pagination;
 
   return (

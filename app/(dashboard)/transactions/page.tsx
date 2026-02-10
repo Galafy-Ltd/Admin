@@ -13,6 +13,7 @@ import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { transactionsApi } from '@/lib/api/transactions';
 import { analyticsApi } from '@/lib/api/analytics';
+import type { Transaction } from '@/lib/types/api';
 import Link from 'next/link';
 
 export default function TransactionsPage() {
@@ -29,7 +30,7 @@ export default function TransactionsPage() {
     queryFn: () => analyticsApi.getTransactionSummary(),
   });
 
-  const transactions = transactionsData?.transactions || [];
+  const transactions: Transaction[] = transactionsData?.transactions || [];
   const pagination = transactionsData?.pagination;
 
   return (

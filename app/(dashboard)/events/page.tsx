@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { eventsApi } from '@/lib/api/events';
+import type { Event } from '@/lib/types/api';
 
 export default function EventsPage() {
   const [page, setPage] = useState(1);
@@ -21,7 +22,7 @@ export default function EventsPage() {
     queryFn: () => eventsApi.getEvents({ page, limit }),
   });
 
-  const events = eventsData?.events || [];
+  const events: Event[] = eventsData?.events || [];
   const pagination = eventsData?.pagination;
   
   // Calculate metrics from all events (not just current page)

@@ -1,4 +1,5 @@
 import apiClient from './client';
+import type { WithdrawalsResponse } from '../types/api';
 
 export interface GetWithdrawalsParams {
   page?: number;
@@ -14,8 +15,8 @@ export interface RejectWithdrawalRequest {
 }
 
 export const withdrawalsApi = {
-  async getWithdrawals(params?: GetWithdrawalsParams): Promise<any> {
-    const response = await apiClient.getClient().get('/admin/withdrawals', { params });
+  async getWithdrawals(params?: GetWithdrawalsParams): Promise<WithdrawalsResponse> {
+    const response = await apiClient.getClient().get<WithdrawalsResponse>('/admin/withdrawals', { params });
     return response.data;
   },
 

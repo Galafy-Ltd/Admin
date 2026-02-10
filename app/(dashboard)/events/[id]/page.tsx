@@ -23,6 +23,7 @@ import { Select } from '@/components/ui/Select';
 import { Toggle } from '@/components/ui/Toggle';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { eventsApi } from '@/lib/api/events';
+import type { SprayActivity, TopSprayer, Performer } from '@/lib/types/api';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function EventDetailsPage() {
@@ -256,7 +257,7 @@ export default function EventDetailsPage() {
                 {sprayActivity?.sprays?.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">No spray activity found</p>
                 ) : (
-                  sprayActivity?.sprays?.map((spray: any) => (
+                  sprayActivity?.sprays?.map((spray: SprayActivity) => (
                     <div key={spray.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
                         {spray.user?.firstName?.charAt(0) || spray.user?.email?.charAt(0) || 'A'}
@@ -304,7 +305,7 @@ export default function EventDetailsPage() {
                 {topSprayers?.leaderboard?.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">No sprayers yet</p>
                 ) : (
-                  topSprayers?.leaderboard?.map((sprayer: any, index: number) => (
+                  topSprayers?.leaderboard?.map((sprayer: TopSprayer, index: number) => (
                     <div
                       key={sprayer.userId || index}
                       className={`flex items-center justify-between p-3 rounded-lg ${
@@ -341,7 +342,7 @@ export default function EventDetailsPage() {
               {eventDetails.performers?.length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No performers</p>
               ) : (
-                eventDetails.performers?.map((performer) => (
+                eventDetails.performers?.map((performer: Performer) => (
                   <div
                     key={performer.id}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"

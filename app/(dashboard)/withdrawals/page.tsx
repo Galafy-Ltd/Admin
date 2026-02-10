@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { withdrawalsApi } from '@/lib/api/withdrawals';
+import type { Withdrawal } from '@/lib/types/api';
 
 export default function WithdrawalsPage() {
   const { data: withdrawalsData, isLoading } = useQuery({
@@ -14,7 +15,7 @@ export default function WithdrawalsPage() {
     queryFn: () => withdrawalsApi.getWithdrawals({ limit: 20 }),
   });
 
-  const withdrawals = withdrawalsData?.withdrawals || withdrawalsData?.payouts || [];
+  const withdrawals: Withdrawal[] = withdrawalsData?.withdrawals || withdrawalsData?.payouts || [];
 
   return (
     <div className="space-y-6">
@@ -63,7 +64,17 @@ export default function WithdrawalsPage() {
                   <TableCell>{formatCurrency(withdrawal.amount)}</TableCell>
                   <TableCell>{formatDate(withdrawal.date)}</TableCell>
                   <TableCell>
-                    <Badge variant={withdrawal.status === 'Completed' ? 'success' : 'warning'}>
+                    <Badge
+                      variant={
+                        withdrawal.status === 'SUCCESS'
+                          ? 'success'
+                          : withdrawal.status === 'PENDING' || withdrawal.status === 'PROCESSING'
+                          ? 'warning'
+                          : withdrawal.status === 'REJECTED' || withdrawal.status === 'FAILED'
+                          ? 'danger'
+                          : 'default'
+                      }
+                    >
                       {withdrawal.status}
                     </Badge>
                   </TableCell>
