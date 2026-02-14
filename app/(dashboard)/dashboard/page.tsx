@@ -1,27 +1,54 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Users, Calendar, DollarSign, Clock } from 'lucide-react';
 import { MetricCard } from '@/components/features/dashboard/MetricCard';
+import { TransactionChart } from '@/components/features/dashboard/TransactionChart';
 import { Card } from '@/components/ui/Card';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatCurrency, formatCurrencyAbbreviated, formatRelativeTime } from '@/lib/utils/format';
 import { analyticsApi } from '@/lib/api/analytics';
 import { eventsApi } from '@/lib/api/events';
 import { dashboardApi } from '@/lib/api/dashboard';
-import type { Event } from '@/lib/types/api';
+import type { Event, TopEventBySprayers } from '@/lib/types/api';
 
 export default function DashboardPage() {
-  const { data: analytics } = useQuery({
-    queryKey: ['analytics', 'transaction-summary'],
-    queryFn: () => analyticsApi.getTransactionSummary(),
+  const [selectedPeriod, setSelectedPeriod] = useState<'7' | '30'>('7');
+
+  // Calculate date ranges for the selected period
+  const dateRange = useMemo(() => {
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (selectedPeriod === '7' ? 7 : 30));
+    startDate.setHours(0, 0, 0, 0);
+
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
+  }, [selectedPeriod]);
+
+  const { data: analytics, isLoading: isLoadingAnalytics } = useQuery({
+    queryKey: ['analytics', 'transaction-summary', dateRange.startDate, dateRange.endDate],
+    queryFn: () => analyticsApi.getTransactionSummary({
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    }),
+  });
+
+  const { data: topEventsData } = useQuery({
+    queryKey: ['events', 'top-by-sprayers'],
+    queryFn: () => eventsApi.getTopEventsBySprayers(),
   });
 
   const { data: eventsData } = useQuery({
-    queryKey: ['events'],
-    queryFn: () => eventsApi.getEvents({ limit: 5 }),
+    queryKey: ['events', 'recent'],
+    queryFn: () => eventsApi.getEvents({ limit: 6 }),
   });
 
   const { data: dashboardMetrics } = useQuery({
@@ -32,12 +59,17 @@ export default function DashboardPage() {
   // Use API data or fallback to defaults
   const metrics = {
     totalUsers: dashboardMetrics?.totalUsers ?? 0,
+    totalUsersGrowth: dashboardMetrics?.totalUsersGrowth ?? 0,
     totalEvents: dashboardMetrics?.totalEvents ?? 0,
-    revenue: dashboardMetrics?.revenue ? formatCurrency(dashboardMetrics.revenue) : 'N0',
+    totalEventsGrowth: dashboardMetrics?.totalEventsGrowth ?? 0,
+    revenue: dashboardMetrics?.revenue
+      ? formatCurrencyAbbreviated(dashboardMetrics.revenue)
+      : 'N0',
+    revenueGrowth: dashboardMetrics?.revenueGrowth ?? 0,
     pendingKYC: dashboardMetrics?.pendingKyc ?? 0,
   };
 
-  const topEvents: Event[] = eventsData?.events?.slice(0, 4) || [];
+  const topEvents: TopEventBySprayers[] = topEventsData?.events?.slice(0, 4) || [];
 
   return (
     <div className="space-y-6">
@@ -51,21 +83,21 @@ export default function DashboardPage() {
           title="Total Users"
           value={metrics.totalUsers}
           icon={Users}
-          change={4.2}
+          change={metrics.totalUsersGrowth}
           changeLabel="vs last 7 days"
         />
         <MetricCard
           title="Total Events"
           value={metrics.totalEvents}
           icon={Calendar}
-          change={4.2}
+          change={metrics.totalEventsGrowth}
           changeLabel="vs last 7 days"
         />
         <MetricCard
           title="Revenue"
           value={metrics.revenue}
           icon={DollarSign}
-          change={4.2}
+          change={metrics.revenueGrowth}
           changeLabel="vs last 7 days"
         />
         <MetricCard
@@ -76,58 +108,72 @@ export default function DashboardPage() {
         />
       </div>
 
-      <Card title="Transaction Analytics">
-        <div className="mb-4 flex gap-2">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">
-            7 Days
-          </button>
-          <button className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium">
-            30 Days
-          </button>
-        </div>
-        <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-          <p className="text-gray-500">Transaction chart will be displayed here</p>
-        </div>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-[13fr_7fr] gap-6 w-full">
+        <Card title="Transaction Analytics" className="min-w-0">
+          <div className="mb-4 flex gap-2">
+            <button
+              onClick={() => setSelectedPeriod('7')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedPeriod === '7'
+                  ? 'bg-[#0D2A68] text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              7 Days
+            </button>
+            <button
+              onClick={() => setSelectedPeriod('30')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                selectedPeriod === '30'
+                  ? 'bg-[#0D2A68] text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              30 Days
+            </button>
+          </div>
+          <TransactionChart data={analytics} isLoading={isLoadingAnalytics} />
+        </Card>
 
-      <Card title="Top Events Performance">
-        <div className="space-y-4">
-          {topEvents.map((event, index) => (
-            <div key={event.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-4">
-                {event.imageUrl ? (
-                  <img
-                    src={event.imageUrl}
-                    alt={event.title}
-                    className="w-12 h-12 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <span className="text-blue-600 font-semibold">{index + 1}</span>
+        <Card title="Top Events Performance" className="min-w-0">
+          <div className="space-y-4">
+            {topEvents.map((event) => (
+              <div key={event.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-4">
+                  {event.imageUrl ? (
+                    <img
+                      src={event.imageUrl}
+                      alt={event.title}
+                      className="w-12 h-12 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <span className="text-blue-600 font-semibold">{event.rank}</span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-medium text-gray-900">{event.title}</p>
+                    <p className="text-sm text-gray-600">
+                      {event.sprayerCount || 0} Sprayers
+                    </p>
                   </div>
-                )}
-                <div>
-                  <p className="font-medium text-gray-900">{event.title}</p>
-                  <p className="text-sm text-gray-600">
-                    {formatCurrency(event.totalSprayed || '0')} - {event.uniqueSprayerCount || 0} Sprayers
-                  </p>
                 </div>
+                <Badge
+                  variant={
+                    event.status === 'LIVE'
+                      ? 'success'
+                      : event.status === 'SCHEDULED'
+                      ? 'warning'
+                      : 'default'
+                  }
+                >
+                  {event.status}
+                </Badge>
               </div>
-              <Badge
-                variant={
-                  event.status === 'LIVE'
-                    ? 'success'
-                    : event.status === 'SCHEDULED'
-                    ? 'warning'
-                    : 'default'
-                }
-              >
-                {event.status}
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </Card>
+            ))}
+          </div>
+        </Card>
+      </div>
 
       <Card title="Recent Event Oversight">
         <Table>
@@ -159,13 +205,31 @@ export default function DashboardPage() {
                     )}
                     <div>
                       <p className="font-medium">{event.title}</p>
-                      <p className="text-sm text-gray-500">Started 2h ago</p>
+                      <p className="text-sm text-gray-500">
+                        {event.startsAt ? (
+                          new Date(event.startsAt) < new Date() 
+                            ? `Started ${formatRelativeTime(event.startsAt)}` 
+                            : `Starts ${formatRelativeTime(event.startsAt)}`
+                        ) : 'Date not available'}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gray-200"></div>
+                    {event.hostUser?.profilePicture ? (
+                      <img
+                        src={event.hostUser.profilePicture}
+                        alt={`${event.hostUser.firstName} ${event.hostUser.lastName}`}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-gray-500 text-xs font-medium">
+                          {event.hostUser?.firstName?.charAt(0)?.toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                    )}
                     <span>{event.hostUser?.firstName} {event.hostUser?.lastName}</span>
                   </div>
                 </TableCell>
@@ -187,7 +251,7 @@ export default function DashboardPage() {
                 <TableCell>
                   <Link
                     href={`/events/${event.id}`}
-                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
+                    className="text-[#0D2A68] hover:text-[#0D2A68]/80 text-sm font-medium"
                   >
                     View Details
                   </Link>

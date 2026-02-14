@@ -57,3 +57,23 @@ export const formatTier = (tier: string): string => {
   return tier.replace('TIER_', 'Tier ');
 };
 
+export const formatCurrencyAbbreviated = (amount: string | number): string => {
+  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(numAmount)) return 'N0';
+
+  const absAmount = Math.abs(numAmount);
+  
+  if (absAmount >= 1000000) {
+    // Millions
+    const millions = absAmount / 1000000;
+    return `N${millions.toFixed(1)}M`;
+  } else if (absAmount >= 1000) {
+    // Thousands
+    const thousands = absAmount / 1000;
+    return `N${thousands.toFixed(1)}K`;
+  } else {
+    // Less than 1000
+    return `N${Math.round(absAmount)}`;
+  }
+};
+

@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { UsersResponse, User } from '../types/api';
+import type { UsersResponse, User, SearchUsersResponse } from '../types/api';
 
 export interface GetUsersParams {
   page?: number;
@@ -27,6 +27,13 @@ export const usersApi = {
 
   async unrestrictUser(userId: string): Promise<User> {
     const response = await apiClient.getClient().post<User>(`/admin/users/${userId}/unrestrict`);
+    return response.data;
+  },
+
+  async searchUsers(q: string): Promise<SearchUsersResponse> {
+    const response = await apiClient.getClient().get<SearchUsersResponse>('/admin/users/search', {
+      params: { q },
+    });
     return response.data;
   },
 };

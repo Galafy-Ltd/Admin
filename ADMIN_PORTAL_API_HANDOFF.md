@@ -323,6 +323,79 @@ All endpoints below require authentication unless specified otherwise.
 
 ---
 
+#### Search Users
+**Endpoint:** `GET /admin/users/search`
+
+**Description:** Search for users by email, phone, or username. The endpoint auto-detects the search type based on the query format. Email and phone searches use exact matching (return 0 or 1 user), while username searches use partial matching (can return multiple users).
+
+**Query Parameters:**
+- `q` (required): Search query string
+  - Email: Must contain `@` symbol (e.g., `john@example.com`)
+  - Phone: Contains digits, `+`, spaces, hyphens, or parentheses (e.g., `+2341234567890` or `234 123 456 7890`)
+  - Username: Any other string (e.g., `johndoe` or `john`)
+
+**Search Type Detection:**
+1. **Email Search**: If query contains `@`, performs exact email match
+2. **Phone Search**: If query matches phone pattern (digits/+/spaces), performs phone search
+3. **Username Search**: Otherwise, performs case-insensitive partial username match
+
+**Response:**
+```json
+{
+  "users": [
+    {
+      "id": "user-uuid",
+      "email": "john@example.com",
+      "firstName": "John",
+      "lastName": "Doe",
+      "username": "johndoe",
+      "phone": "+2341234567890",
+      "profilePicture": "https://example.com/profile.jpg",
+      "isVerified": true,
+      "customer": {
+        "id": "customer-uuid",
+        "tier": "Tier_2",
+        "isAmlRestricted": false,
+        "amlRestrictedAt": null,
+        "amlRestrictionReason": null,
+        "walletCount": 1,
+        "totalBalance": "5000000",
+        "wallets": [
+          {
+            "id": "wallet-uuid",
+            "availableBalance": "5000000",
+            "ledgerBalance": "5000000",
+            "currencyId": "currency-uuid"
+          }
+        ],
+        "withdrawalLimit": {
+          "dailyLimit": "100000000",
+          "approvedDailyLimit": "1000000000",
+          "isLimitIncreased": true
+        }
+      },
+      "createdAt": "2024-01-01T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Response Notes:**
+- Always returns an array format for consistency
+- Email/phone search: Returns array with 0 or 1 user (exact match)
+- Username search: Returns array with 0 to 50 users (partial match, limited to prevent too many results)
+- Empty array `[]` if no matches found
+- Username results are ordered by creation date (newest first)
+
+**Examples:**
+- Email: `GET /admin/users/search?q=john@example.com` → Returns single user if email exists
+- Phone: `GET /admin/users/search?q=+2341234567890` → Returns single user if phone exists
+- Username: `GET /admin/users/search?q=john` → Returns all users with usernames containing "john" (case-insensitive)
+
+**Permission Required:** `view_users`
+
+---
+
 #### Get User Details
 **Endpoint:** `GET /admin/users/:userId`
 
@@ -485,12 +558,36 @@ All endpoints below require authentication unless specified otherwise.
   "totalWalletBalance": "5000000000",
   "totalWithdrawn": "2000000000",
   "totalReceived": "7000000000",
+  "chartData": [
+    {
+      "date": "2025-02-01",
+      "amount": "50000000",
+      "count": 25
+    },
+    {
+      "date": "2025-02-02",
+      "amount": "75000000",
+      "count": 30
+    },
+    {
+      "date": "2025-02-03",
+      "amount": "60000000",
+      "count": 28
+    }
+  ],
   "cached": false,
   "timestamp": "2025-02-08T14:30:00.000Z",
   "startDate": "2025-01-01T00:00:00.000Z",
   "endDate": "2025-02-08T23:59:59.999Z"
 }
 ```
+
+**Chart Data:**
+- `chartData` contains daily transaction data points
+- Includes all successful transactions (status = SUCCESS) regardless of type
+- Defaults to last 7 days if no date filters provided
+- Each data point includes: date (YYYY-MM-DD), total amount for that day (in kobo), and transaction count
+- Data points are sorted by date in ascending order
 
 **Note:** Results are cached for 5 minutes for all-time queries (no date filters).
 
@@ -507,14 +604,24 @@ All endpoints below require authentication unless specified otherwise.
 ```json
 {
   "totalUsers": 1000,
+  "totalUsersGrowth": 4.2,
+  "verifiedUsers": 950,
   "totalEvents": 109,
+  "totalEventsGrowth": 4.2,
   "activeEvents": 28,
   "pendingKyc": 18,
   "revenue": "8650000000",
+  "revenueGrowth": 4.2,
   "totalSprayers": 0,
   "totalAttendees": 0
 }
 ```
+
+**Growth Calculation:**
+- Growth percentages compare last 7 days vs previous 7 days (14 days ago to 7 days ago)
+- Formula: `((current - previous) / previous) * 100`
+- Growth values are rounded to 1 decimal place
+- Revenue is calculated from AdminFee table (status = 'COLLECTED')
 
 **Permission Required:** `view_dashboard`
 
@@ -567,6 +674,73 @@ All endpoints below require authentication unless specified otherwise.
   }
 }
 ```
+
+**Permission Required:** `view_events`
+
+---
+
+#### Get Top 5 Events by Sprayers
+**Endpoint:** `GET /admin/events/top-by-sprayers`
+
+**Description:** Returns the top 5 events ranked by number of unique sprayers. Events with the highest number of sprayers rank first. In case of ties (same sprayer count or no spray data), events are ranked by earliest start date.
+
+**Response:**
+```json
+{
+  "events": [
+    {
+      "rank": 1,
+      "id": "event-uuid",
+      "title": "Concert Event",
+      "code": "ABC123",
+      "status": "LIVE",
+      "startsAt": "2024-12-25T18:00:00Z",
+      "startDate": "2024-12-25T18:00:00Z",
+      "location": "Lagos",
+      "category": "Music",
+      "imageUrl": "https://example.com/image.jpg",
+      "hostUser": {
+        "id": "user-uuid",
+        "email": "host@example.com",
+        "firstName": "Host",
+        "lastName": "User",
+        "username": "hostuser",
+        "phone": "+2341234567890",
+        "profilePicture": "https://example.com/profile.jpg"
+      },
+      "sprayerCount": 150,
+      "createdAt": "2024-01-01T00:00:00Z"
+    },
+    {
+      "rank": 2,
+      "id": "event-uuid-2",
+      "title": "Birthday Party",
+      "code": "DEF456",
+      "status": "LIVE",
+      "startsAt": "2024-12-20T15:00:00Z",
+      "startDate": "2024-12-20T15:00:00Z",
+      "location": "Abuja",
+      "category": "Celebration",
+      "imageUrl": "https://example.com/image2.jpg",
+      "hostUser": {
+        "id": "user-uuid-2",
+        "email": "host2@example.com",
+        "firstName": "Host",
+        "lastName": "Two",
+        "username": "hosttwo",
+        "phone": "+2341234567891",
+        "profilePicture": "https://example.com/profile2.jpg"
+      },
+      "sprayerCount": 120,
+      "createdAt": "2024-01-02T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Ranking Logic:**
+1. Primary sort: Number of unique sprayers (descending) - events with more sprayers rank higher
+2. Tie-breaking: If sprayer counts are equal (or both events have no sprayers), events with earlier start dates rank higher
 
 **Permission Required:** `view_events`
 

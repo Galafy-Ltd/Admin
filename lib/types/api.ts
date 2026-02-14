@@ -34,6 +34,11 @@ export interface User {
   firstName: string;
   lastName: string;
   isActive: boolean;
+  username?: string;
+  phone?: string;
+  profilePicture?: string;
+  isVerified?: boolean;
+  createdAt?: string;
   customer?: Customer;
 }
 
@@ -61,6 +66,10 @@ export interface UsersResponse {
   pagination: Pagination;
 }
 
+export interface SearchUsersResponse {
+  users: User[];
+}
+
 // KYC Types
 export interface KYCRequest {
   id: string;
@@ -81,6 +90,11 @@ export interface TransactionAnalytics {
   totalWalletBalance: string;
   totalWithdrawn: string;
   totalReceived: string;
+  chartData: Array<{
+    date: string;      // YYYY-MM-DD format
+    amount: string;    // Amount in kobo
+    count: number;     // Transaction count
+  }>;
   cached: boolean;
   timestamp: string;
   startDate?: string;
@@ -241,12 +255,41 @@ export interface Event {
     email: string;
     firstName: string;
     lastName: string;
+    profilePicture?: string;
   };
   participantCount?: number;
   sprayCount?: number;
   totalSprayed?: string;
   uniqueSprayerCount?: number;
   createdAt: string;
+}
+
+export interface TopEventBySprayers {
+  rank: number;
+  id: string;
+  title: string;
+  code: string;
+  status: 'DRAFT' | 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED';
+  startsAt: string;
+  startDate: string;
+  location?: string;
+  category?: string;
+  imageUrl?: string;
+  hostUser?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    username?: string;
+    phone?: string;
+    profilePicture?: string;
+  };
+  sprayerCount: number;
+  createdAt?: string;
+}
+
+export interface TopEventsBySprayersResponse {
+  events: TopEventBySprayers[];
 }
 
 export interface EventsResponse {

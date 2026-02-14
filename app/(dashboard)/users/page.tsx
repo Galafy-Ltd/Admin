@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Filter, Download } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
@@ -10,11 +11,16 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Pagination } from '@/components/ui/Pagination';
+import { UserDetailsModal } from '@/components/features/users/UserDetailsModal';
 import { formatCurrency, formatTier } from '@/lib/utils/format';
 import { usersApi } from '@/lib/api/users';
 import type { User } from '@/lib/types/api';
 
-export default function UsersPage() {
+function UsersPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const userId = searchParams.get('userId');
+  
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -25,6 +31,16 @@ export default function UsersPage() {
   useEffect(() => {
     setPage(1);
   }, [search, tierFilter, statusFilter]);
+
+  const handleCloseModal = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('userId');
+    router.push(`/users${params.toString() ? `?${params.toString()}` : ''}`);
+  };
+
+  const handleUserClick = (userId: string) => {
+    router.push(`/users?userId=${userId}`);
+  };
 
   const { data: usersData, isLoading } = useQuery({
     queryKey: ['users', { search, tier: tierFilter !== 'all' ? tierFilter : undefined, page, limit }],
@@ -111,10 +127,26 @@ export default function UsersPage() {
               </TableRow>
             ) : (
               users.map((user) => (
-                <TableRow key={user.id}>
+                <TableRow
+                  key={user.id}
+                  className="cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleUserClick(user.id)}
+                >
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200"></div>
+                      {user.profilePicture ? (
+                        <img
+                          src={user.profilePicture}
+                          alt={`${user.firstName} ${user.lastName}`}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                          <span className="text-gray-600 text-sm font-medium">
+                            {user.firstName?.charAt(0)?.toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium">
                           {user.firstName} {user.lastName}
@@ -159,7 +191,28 @@ export default function UsersPage() {
           />
         )}
       </Card>
+
+      {userId && (
+        <UserDetailsModal userId={userId} onClose={handleCloseModal} />
+      )}
     </div>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Users Management</h1>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <UsersPageContent />
+    </Suspense>
   );
 }
 
