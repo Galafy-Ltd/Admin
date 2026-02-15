@@ -27,8 +27,8 @@ export function TransactionChart({ data, isLoading }: TransactionChartProps) {
     }
 
     return data.chartData.map((item) => {
-      // Convert amount from kobo to Naira
-      const amountInNaira = parseFloat(item.amount) / 100;
+      // Amount is already in Naira (Decimal with 2 decimal places), no conversion needed
+      const amountInNaira = parseFloat(item.amount);
       
       // Format date to short day name (Mon, Tue, Wed, etc.)
       let dayName = '';
@@ -44,6 +44,8 @@ export function TransactionChart({ data, isLoading }: TransactionChartProps) {
         dayName,
         amount: amountInNaira,
         count: item.count,
+        // Use date as unique key for chart positioning
+        dateKey: item.date,
       };
     });
   }, [data]);
@@ -112,11 +114,20 @@ export function TransactionChart({ data, isLoading }: TransactionChartProps) {
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
         <XAxis
-          dataKey="dayName"
+          dataKey="dateKey"
           stroke="#6B7280"
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          interval={0}
+          angle={chartData.length > 7 ? -45 : 0}
+          textAnchor={chartData.length > 7 ? "end" : "middle"}
+          height={chartData.length > 7 ? 60 : 30}
+          tickFormatter={(value) => {
+            // Find the corresponding dayName for this date
+            const dataPoint = chartData.find((d) => d.dateKey === value);
+            return dataPoint?.dayName || value;
+          }}
         />
         <YAxis
           stroke="#6B7280"
@@ -133,6 +144,7 @@ export function TransactionChart({ data, isLoading }: TransactionChartProps) {
           stroke="none"
           fill="url(#colorAmount)"
           fillOpacity={1}
+          connectNulls={false}
         />
         <Line
           type="monotone"
@@ -141,6 +153,7 @@ export function TransactionChart({ data, isLoading }: TransactionChartProps) {
           strokeWidth={2}
           dot={false}
           activeDot={{ r: 4, fill: '#3B82F6' }}
+          connectNulls={false}
         />
       </LineChart>
     </ResponsiveContainer>
