@@ -1,10 +1,11 @@
 import apiClient from './client';
-import type { EventsResponse, EventDetails, TopEventsBySprayersResponse } from '../types/api';
+import type { EventsResponse, EventDetails, TopEventsBySprayersResponse, EventMetrics } from '../types/api';
 
 export interface GetEventsParams {
   page?: number;
   limit?: number;
   status?: string;
+  categories?: string[];
   search?: string;
   hostUserId?: string;
   startDate?: string;
@@ -61,6 +62,19 @@ export const eventsApi = {
 
   async getTopEventsBySprayers(): Promise<TopEventsBySprayersResponse> {
     const response = await apiClient.getClient().get<TopEventsBySprayersResponse>('/admin/events/top-by-sprayers');
+    return response.data;
+  },
+
+  async getEventMetrics(): Promise<EventMetrics> {
+    const response = await apiClient.getClient().get<EventMetrics>('/admin/events/metrics');
+    return response.data;
+  },
+
+  async exportEvents(params?: GetEventsParams): Promise<Blob> {
+    const response = await apiClient.getClient().get('/admin/events/export', {
+      params,
+      responseType: 'blob',
+    });
     return response.data;
   },
 };

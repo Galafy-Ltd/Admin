@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Play, Users, DollarSign, Filter, Download } from 'lucide-react';
+import { Calendar, Play, Users, DollarSign, Filter, Download, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { MetricCard } from '@/components/features/dashboard/MetricCard';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
@@ -11,27 +11,82 @@ import { Button } from '@/components/ui/Button';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { eventsApi } from '@/lib/api/events';
+import { EventFilterModal, type EventFilters } from '@/components/features/events/EventFilterModal';
 import type { Event } from '@/lib/types/api';
 
 export default function EventsPage() {
   const [page, setPage] = useState(1);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [filters, setFilters] = useState<EventFilters>({});
+  const [isExporting, setIsExporting] = useState(false);
   const limit = 20;
 
   const { data: eventsData, isLoading } = useQuery({
-    queryKey: ['events', { page, limit }],
-    queryFn: () => eventsApi.getEvents({ page, limit }),
+    queryKey: ['events', { page, limit, ...filters }],
+    queryFn: () => {
+      const params: any = { page, limit };
+      if (filters.status) params.status = filters.status;
+      if (filters.categories && filters.categories.length > 0) params.categories = filters.categories;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
+      return eventsApi.getEvents(params);
+    },
+  });
+
+  const { data: metrics, isLoading: isLoadingMetrics } = useQuery({
+    queryKey: ['events-metrics'],
+    queryFn: () => eventsApi.getEventMetrics(),
   });
 
   const events: Event[] = eventsData?.events || [];
   const pagination = eventsData?.pagination;
-  
-  // Calculate metrics from all events (not just current page)
-  // Note: These should ideally come from a separate metrics endpoint
-  const metrics = {
-    totalEvents: pagination?.total || events.length,
-    activeEvents: events.filter((e) => e.status === 'LIVE').length,
-    totalAttendees: events.reduce((sum, e) => sum + (e.uniqueSprayerCount || 0), 0),
-    totalSprayed: events.reduce((sum, e) => sum + parseFloat(e.totalSprayed || '0'), 0),
+
+  // Check if any filters are currently applied
+  const hasActiveFilters = useMemo(() => {
+    return !!(
+      filters.status ||
+      (filters.categories && filters.categories.length > 0) ||
+      filters.startDate ||
+      filters.endDate
+    );
+  }, [filters]);
+
+  const handleApplyFilters = (newFilters: EventFilters) => {
+    setFilters(newFilters);
+    setPage(1); // Reset to first page when filters change
+  };
+
+  const handleResetFilters = () => {
+    setFilters({});
+    setPage(1);
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const params: any = {};
+      if (filters.status) params.status = filters.status;
+      if (filters.categories && filters.categories.length > 0) params.categories = filters.categories;
+      if (filters.startDate) params.startDate = filters.startDate;
+      if (filters.endDate) params.endDate = filters.endDate;
+
+      const blob = await eventsApi.exportEvents(params);
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `events-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export events. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -42,21 +97,38 @@ export default function EventsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="Total Events" value={metrics.totalEvents} icon={Calendar} change={4.2} changeLabel="vs last 7 days" />
-        <MetricCard title="Active Events" value={metrics.activeEvents} icon={Play} change={4.2} changeLabel="vs last 7 days" />
-        <MetricCard title="Total Attendees" value={metrics.totalAttendees} icon={Users} change={4.2} changeLabel="vs last 7 days" />
-        <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed.toString())} icon={DollarSign} change={4.2} changeLabel="vs last 7 days" />
+        {isLoadingMetrics ? (
+          <>
+            <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-24 bg-gray-100 rounded-lg animate-pulse" />
+          </>
+        ) : metrics ? (
+          <>
+            <MetricCard title="Total Events" value={metrics.totalEvents} icon={Calendar} change={metrics.totalEventsGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Active Events" value={metrics.activeEvents} icon={Play} change={metrics.activeEventsGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Total Attendees" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed)} icon={DollarSign} change={metrics.totalSprayedGrowth} changeLabel="vs last 7 days" />
+          </>
+        ) : null}
       </div>
 
       <Card>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Recent Event Oversight</h2>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={() => setIsFilterModalOpen(true)}>
               <Filter className="h-4 w-4 mr-2" />
               Filter
             </Button>
-            <Button variant="outline" size="sm">
+            {hasActiveFilters && (
+              <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                <X className="h-4 w-4 mr-2" />
+                Clear Filters
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={handleExport} isLoading={isExporting}>
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
@@ -146,6 +218,14 @@ export default function EventsPage() {
           />
         )}
       </Card>
+
+      <EventFilterModal
+        isOpen={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        filters={filters}
+        onApplyFilters={handleApplyFilters}
+        onResetFilters={handleResetFilters}
+      />
     </div>
   );
 }

@@ -118,7 +118,7 @@ export default function TransactionsPage() {
                       <div className="w-10 h-10 rounded-full bg-gray-200"></div>
                       <div>
                         <p className="font-medium">
-                          {transaction.user?.firstName} {transaction.user?.lastName}
+                          {transaction.user?.username || transaction.user?.email || 'Unknown User'}
                         </p>
                         <p className="text-sm text-gray-500">{transaction.user?.id.slice(0, 13)}</p>
                       </div>

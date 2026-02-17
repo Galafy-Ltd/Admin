@@ -23,7 +23,7 @@ import { Select } from '@/components/ui/Select';
 import { Toggle } from '@/components/ui/Toggle';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { eventsApi } from '@/lib/api/events';
-import type { SprayActivity, TopSprayer, Performer } from '@/lib/types/api';
+import type { TopSprayer } from '@/lib/types/api';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function EventDetailsPage() {
@@ -39,17 +39,6 @@ export default function EventDetailsPage() {
   const { data: eventDetails, isLoading } = useQuery({
     queryKey: ['event', eventId],
     queryFn: () => eventsApi.getEventDetails(eventId),
-  });
-
-  const { data: sprayActivity } = useQuery({
-    queryKey: ['event', eventId, 'spray-activity', spraySearch, amountFilter, timeFilter],
-    queryFn: () =>
-      eventsApi.getSprayActivity(eventId, {
-        search: spraySearch || undefined,
-        page: 1,
-        limit: 20,
-      }),
-    enabled: !!eventId,
   });
 
   const { data: topSprayers } = useQuery({
@@ -206,7 +195,7 @@ export default function EventDetailsPage() {
             <div>
               <p className="text-sm text-gray-600">Active Performers</p>
               <p className="text-2xl font-bold text-gray-900">
-                {eventDetails.performers?.filter((p) => p.status === 'Active').length || 0}
+                {eventDetails.participants?.filter((p) => p.status === 'Active').length || 0}
               </p>
             </div>
           </div>
@@ -254,37 +243,72 @@ export default function EventDetailsPage() {
 
               {/* Activity List */}
               <div className="space-y-4">
-                {sprayActivity?.sprays?.length === 0 ? (
+                {!eventDetails?.sprays || eventDetails.sprays.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">No spray activity found</p>
                 ) : (
-                  sprayActivity?.sprays?.map((spray: SprayActivity) => (
-                    <div key={spray.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                        {spray.user?.firstName?.charAt(0) || spray.user?.email?.charAt(0) || 'A'}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-medium text-gray-900">
-                            {spray.user?.firstName && spray.user?.lastName
-                              ? `${spray.user.firstName} ${spray.user.lastName}`
-                              : spray.user?.email || 'Anonymous User'}
-                            {!spray.user && <span className="text-gray-500 ml-1">*</span>}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">
-                              {formatCurrency(spray.amount)}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              {formatDistanceToNow(new Date(spray.createdAt), { addSuffix: true })}
-                            </span>
+                  eventDetails.sprays
+                    .filter((spray) => {
+                      // Apply search filter
+                      if (spraySearch) {
+                        const searchLower = spraySearch.toLowerCase();
+                        const username = spray.sprayerWallet?.customer?.user?.username?.toLowerCase() || '';
+                        const email = spray.sprayerWallet?.customer?.user?.email?.toLowerCase() || '';
+                        if (!username.includes(searchLower) && !email.includes(searchLower)) {
+                          return false;
+                        }
+                      }
+                      // Apply amount filter
+                      if (amountFilter !== 'all') {
+                        const amount = parseFloat(spray.totalAmount);
+                        if (amountFilter === '0-10000' && (amount < 0 || amount > 10000)) return false;
+                        if (amountFilter === '10000-50000' && (amount < 10000 || amount > 50000)) return false;
+                        if (amountFilter === '50000+' && amount < 50000) return false;
+                      }
+                      // Apply time filter
+                      if (timeFilter !== 'all') {
+                        const sprayDate = new Date(spray.createdAt);
+                        const now = new Date();
+                        if (timeFilter === 'today' && sprayDate.toDateString() !== now.toDateString()) return false;
+                        if (timeFilter === 'week') {
+                          const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                          if (sprayDate < weekAgo) return false;
+                        }
+                        if (timeFilter === 'month') {
+                          const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                          if (sprayDate < monthAgo) return false;
+                        }
+                      }
+                      return true;
+                    })
+                    .map((spray) => {
+                      const username = spray.sprayerWallet?.customer?.user?.username || spray.sprayerWallet?.customer?.user?.email || 'Anonymous User';
+                      return (
+                        <div key={spray.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                            {username.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="font-medium text-gray-900">
+                                {username}
+                                {!spray.sprayerWallet?.customer?.user && <span className="text-gray-500 ml-1">*</span>}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-gray-900">
+                                  {formatCurrency(spray.totalAmount)}
+                                </span>
+                                <span className="text-sm text-gray-500">
+                                  {formatDistanceToNow(new Date(spray.createdAt), { addSuffix: true })}
+                                </span>
+                              </div>
+                            </div>
+                            {spray.note && (
+                              <p className="text-sm text-gray-600 mt-1">{spray.note}</p>
+                            )}
                           </div>
                         </div>
-                        {spray.comment && (
-                          <p className="text-sm text-gray-600 mt-1">{spray.comment}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                      );
+                    })
                 )}
               </div>
             </div>
@@ -315,13 +339,11 @@ export default function EventDetailsPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-lg font-bold text-gray-700">{sprayer.rank || index + 1}.</span>
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
-                          {sprayer.user?.firstName?.charAt(0) || sprayer.user?.email?.charAt(0) || 'A'}
+                          {sprayer.user?.username?.charAt(0)?.toUpperCase() || sprayer.user?.email?.charAt(0)?.toUpperCase() || 'A'}
                         </div>
                         <div>
                           <p className="font-medium text-sm text-gray-900">
-                            {sprayer.user?.firstName && sprayer.user?.lastName
-                              ? `${sprayer.user.firstName} ${sprayer.user.lastName}`
-                              : sprayer.user?.email || 'Anonymous User'}
+                            {sprayer.user?.username || sprayer.user?.email || 'Anonymous User'}
                             {!sprayer.user && <span className="text-gray-500 ml-1">*</span>}
                           </p>
                         </div>
@@ -339,48 +361,53 @@ export default function EventDetailsPage() {
           {/* Performers & Celebrant */}
           <Card title="Performers & Celebrant">
             <div className="space-y-3">
-              {eventDetails.performers?.length === 0 ? (
+              {!eventDetails.participants || eventDetails.participants.length === 0 ? (
                 <p className="text-center text-gray-500 py-4">No performers</p>
               ) : (
-                eventDetails.performers?.map((performer: Performer) => (
-                  <div
-                    key={performer.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
-                          performer.type === 'Celebrant'
-                            ? 'bg-pink-500'
-                            : performer.type === 'T2 Verified'
-                            ? 'bg-blue-500'
-                            : 'bg-purple-500'
-                        }`}
-                      >
-                        <Users className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm text-gray-900">{performer.name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge
-                            variant={performer.status === 'Active' ? 'success' : 'default'}
-                            className="text-xs"
-                          >
-                            {performer.type}
-                          </Badge>
-                          <span
-                            className={`text-xs ${
-                              performer.status === 'Active' ? 'text-green-600' : 'text-gray-500'
-                            }`}
-                          >
-                            • {performer.status}
-                          </span>
+                eventDetails.participants.map((participant) => {
+                  const displayName = participant.name || participant.username || 'Unknown';
+                  const type = participant.type || 'T2 Verified';
+                  const status = participant.status || 'Offline';
+                  return (
+                    <div
+                      key={participant.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
+                            type === 'Celebrant'
+                              ? 'bg-pink-500'
+                              : type === 'T2 Verified'
+                              ? 'bg-blue-500'
+                              : 'bg-purple-500'
+                          }`}
+                        >
+                          <Users className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-sm text-gray-900">{displayName}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge
+                              variant={status === 'Active' ? 'success' : 'default'}
+                              className="text-xs"
+                            >
+                              {type}
+                            </Badge>
+                            <span
+                              className={`text-xs ${
+                                status === 'Active' ? 'text-green-600' : 'text-gray-500'
+                              }`}
+                            >
+                              • {status}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <ExternalLink className="h-4 w-4 text-gray-400" />
                     </div>
-                    <ExternalLink className="h-4 w-4 text-gray-400" />
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </Card>

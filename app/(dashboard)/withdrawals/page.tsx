@@ -56,7 +56,7 @@ export default function WithdrawalsPage() {
                       <div className="w-10 h-10 rounded-full bg-gray-200"></div>
                       <div>
                         <p className="font-medium">
-                          {withdrawal.user?.firstName} {withdrawal.user?.lastName}
+                          {withdrawal.user?.username || withdrawal.user?.email || 'Unknown User'}
                         </p>
                       </div>
                     </div>

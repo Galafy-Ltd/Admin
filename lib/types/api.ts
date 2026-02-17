@@ -46,13 +46,15 @@ export interface Customer {
   id: string;
   tier: 'TIER_0' | 'TIER_1' | 'TIER_2' | 'TIER_3';
   isAmlRestricted: boolean;
+  utilityBillStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
   wallets?: Wallet[];
   withdrawalLimit?: WithdrawalLimit;
 }
 
 export interface Wallet {
   id: string;
-  balance: string;
+  balance?: string;
+  availableBalance?: string;
   currency: string;
 }
 
@@ -255,6 +257,7 @@ export interface Event {
     email: string;
     firstName: string;
     lastName: string;
+    username?: string;
     profilePicture?: string;
   };
   participantCount?: number;
@@ -297,12 +300,44 @@ export interface EventsResponse {
   pagination: Pagination;
 }
 
+export interface EventMetrics {
+  totalEvents: number;
+  totalEventsGrowth: number;
+  activeEvents: number;
+  activeEventsGrowth: number;
+  totalAttendees: number;
+  totalAttendeesGrowth: number;
+  totalSprayed: string;
+  totalSprayedGrowth: number;
+}
+
 export interface EventDetails extends Event {
   location?: string;
   time?: string;
   performers?: Performer[];
   sprayActivity?: SprayActivity[];
   topSprayers?: TopSprayer[];
+  sprays?: Array<{
+    id: string;
+    totalAmount: string;
+    note?: string;
+    createdAt: string;
+    sprayerWallet?: {
+      customer?: {
+        user?: {
+          username?: string;
+          email?: string;
+        };
+      };
+    };
+  }>;
+  participants?: Array<{
+    id: string;
+    name?: string;
+    username?: string;
+    type?: 'Celebrant' | 'T2 Verified' | 'T3 Verified';
+    status?: 'Active' | 'Offline';
+  }>;
 }
 
 export interface SprayActivityResponse {

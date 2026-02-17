@@ -220,17 +220,17 @@ export default function DashboardPage() {
                     {event.hostUser?.profilePicture ? (
                       <img
                         src={event.hostUser.profilePicture}
-                        alt={`${event.hostUser.firstName} ${event.hostUser.lastName}`}
+                        alt={event.hostUser.username || event.hostUser.email}
                         className="w-8 h-8 rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
                         <span className="text-gray-500 text-xs font-medium">
-                          {event.hostUser?.firstName?.charAt(0)?.toUpperCase() || 'U'}
+                          {event.hostUser?.username?.charAt(0)?.toUpperCase() || event.hostUser?.email?.charAt(0)?.toUpperCase() || 'U'}
                         </span>
                       </div>
                     )}
-                    <span>{event.hostUser?.firstName} {event.hostUser?.lastName}</span>
+                    <span>{event.hostUser?.username || event.hostUser?.email || 'Unknown User'}</span>
                   </div>
                 </TableCell>
                 <TableCell>{formatCurrency(event.totalSprayed || '0')}</TableCell>

@@ -62,7 +62,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        className="fixed inset-0 bg-gray-200/80 z-40"
         onClick={onClose}
       />
       

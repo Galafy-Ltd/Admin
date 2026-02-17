@@ -6,6 +6,7 @@ export interface GetUsersParams {
   limit?: number;
   search?: string;
   tier?: string;
+  utilityBillStatus?: string;
   isAmlRestricted?: boolean;
 }
 
@@ -33,6 +34,14 @@ export const usersApi = {
   async searchUsers(q: string): Promise<SearchUsersResponse> {
     const response = await apiClient.getClient().get<SearchUsersResponse>('/admin/users/search', {
       params: { q },
+    });
+    return response.data;
+  },
+
+  async exportUsers(params?: GetUsersParams): Promise<Blob> {
+    const response = await apiClient.getClient().get('/admin/users/export', {
+      params,
+      responseType: 'blob',
     });
     return response.data;
   },

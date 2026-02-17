@@ -288,7 +288,8 @@ All endpoints below require authentication unless specified otherwise.
 - `page` (optional, default: 1): Page number
 - `limit` (optional, default: 20): Items per page
 - `search` (optional): Search by email or name
-- `tier` (optional): Filter by KYC tier (`TIER_0`, `TIER_1`, `TIER_2`)
+- `tier` (optional): Filter by KYC tier (`Tier_0`, `Tier_1`, `Tier_2`, `Tier_3`, `NoTier`). Use `NoTier` to filter users without customer records (no KYC).
+- `utilityBillStatus` (optional): Filter by utility bill submission status (`PENDING`, `APPROVED`, `REJECTED`, `noBill`). Use `noBill` to filter users with no utility bill submissions.
 - `isAmlRestricted` (optional): Filter by AML restriction status (boolean)
 
 **Response:**
@@ -298,16 +299,19 @@ All endpoints below require authentication unless specified otherwise.
     {
       "id": "user-uuid",
       "email": "user@example.com",
+      "username": "johndoe",
       "firstName": "John",
       "lastName": "Doe",
-      "isActive": true,
+      "profilePicture": "https://example.com/profile.jpg",
       "customer": {
         "id": "customer-uuid",
-        "tier": "TIER_2",
+        "tier": "Tier_2",
         "isAmlRestricted": false,
+        "utilityBillStatus": "PENDING",
         "wallets": [...],
         "withdrawalLimit": {...}
-      }
+      },
+      "createdAt": "2024-01-01T00:00:00Z"
     }
   ],
   "pagination": {
@@ -318,6 +322,52 @@ All endpoints below require authentication unless specified otherwise.
   }
 }
 ```
+
+**Permission Required:** `view_users`
+
+---
+
+#### Export Users to CSV
+**Endpoint:** `GET /admin/users/export`
+
+**Description:** Exports all users matching the provided filters to CSV format. Uses the same filter parameters as `GET /admin/users`. Maximum 100,000 records will be exported to prevent memory issues.
+
+**Query Parameters:**
+- `search` (optional): Search by email or name
+- `tier` (optional): Filter by KYC tier (`Tier_0`, `Tier_1`, `Tier_2`, `Tier_3`, `NoTier`). Use `NoTier` to filter users without customer records (no KYC).
+- `utilityBillStatus` (optional): Filter by utility bill submission status (`PENDING`, `APPROVED`, `REJECTED`, `noBill`). Use `noBill` to filter users with no utility bill submissions.
+- `isAmlRestricted` (optional): Filter by AML restriction status (boolean)
+
+**Response:**
+- Content-Type: `text/csv`
+- Content-Disposition: `attachment; filename="users-export-YYYY-MM-DD.csv"`
+- CSV file with the following columns:
+  - User ID
+  - Email
+  - Username
+  - First Name
+  - Last Name
+  - Profile Picture (URL)
+  - Phone
+  - KYC Tier
+  - Utility Bill Status (PENDING, APPROVED, REJECTED, or empty if no submission)
+  - AML Restricted (Yes/No)
+  - AML Restricted At (YYYY-MM-DD format)
+  - AML Restriction Reason
+  - Total Wallets (count)
+  - Total Wallet Balance (sum of availableBalance as decimal string)
+  - Created Date (YYYY-MM-DD format)
+
+**Example Request:**
+```
+GET /admin/users/export?tier=Tier_2&isAmlRestricted=false
+```
+
+**Notes:**
+- All filters from `GET /admin/users` are supported
+- Data is processed in batches of 1,000 records to prevent memory issues
+- Maximum export limit is 100,000 records
+- Filename includes the current date in YYYY-MM-DD format
 
 **Permission Required:** `view_users`
 
@@ -405,8 +455,41 @@ All endpoints below require authentication unless specified otherwise.
 
 ---
 
+#### Send KYC Reminder
+**Endpoint:** `POST /admin/users/:userId/send-kyc-reminder`
+
+**Description:** Send a KYC reminder email to a user to encourage them to complete their KYC verification. The email will only be sent to users with verified email addresses.
+
+**Request:** No request body required
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "KYC reminder email sent successfully",
+  "userId": "user-uuid",
+  "email": "user@example.com"
+}
+```
+
+**Error Responses:**
+- `404`: User not found
+- `400`: User email is not verified or email sending failed
+
+**Permission Required:** `send_kyc_reminders` (SUPER_ADMIN, COMPLIANCE, or SUPPORT)
+
+**Notes:**
+- Only sends emails to users with verified email addresses (`isVerified: true`)
+- The email includes information about the benefits of completing KYC (higher withdrawal limits, full account access, etc.)
+- Includes a call-to-action button/link to complete KYC verification
+- Admin action is logged for audit purposes
+
+---
+
 #### Restrict User (AML Flagging)
 **Endpoint:** `POST /admin/users/:userId/restrict`
+
+**Description:** Restrict a user due to AML compliance issues. An email notification will be automatically sent to the user (if their email is verified) informing them of the restriction and the reason.
 
 **Request:**
 ```json
@@ -415,16 +498,22 @@ All endpoints below require authentication unless specified otherwise.
 }
 ```
 
-**Response:** Updated user object
+**Response:** Updated customer object with restriction details
 
 **Permission Required:** `restrict_users` (SUPER_ADMIN or COMPLIANCE only)
+
+**Notes:**
+- Automatically sends an email notification to the user if their email is verified
+- The email includes the restriction reason and contact information for support
+- Email sending failures are logged but do not prevent the restriction from being applied
+- Sets `isAmlRestricted: true`, `amlRestrictedAt: <current timestamp>`, and `amlRestrictionReason: <provided reason>` on the customer record
 
 ---
 
 #### Unrestrict User
 **Endpoint:** `POST /admin/users/:userId/unrestrict`
 
-**Response:** Updated user object
+**Response:** Updated customer object with restriction removed
 
 **Permission Required:** `unrestrict_users` (SUPER_ADMIN or COMPLIANCE only)
 
@@ -636,9 +725,13 @@ All endpoints below require authentication unless specified otherwise.
 - `page` (optional, default: 1): Page number
 - `limit` (optional, default: 20): Items per page
 - `status` (optional): Filter by event status (`DRAFT`, `SCHEDULED`, `LIVE`, `ENDED`, `CANCELLED`)
+  - UI mapping: "Upcoming" → `SCHEDULED`, "Live" → `LIVE`, "Completed" → `ENDED`, "All" → omit parameter
+- `categories` (optional, array): Filter by event categories (multi-select). Common values: `Birthday`, `Wedding`, `Housewarming`, `Corporate`
+  - Example: `?categories=Birthday&categories=Wedding`
 - `search` (optional): Search by event title or host name
 - `hostUserId` (optional): Filter by host user ID
 - `startDate` (optional): Filter events starting from this date (ISO 8601)
+  - Quick date options (Today, This Week, This Month, Last 90 days) are calculated on frontend and sent as `startDate`/`endDate`
 - `endDate` (optional): Filter events starting before this date (ISO 8601)
 
 **Response:**
@@ -674,6 +767,92 @@ All endpoints below require authentication unless specified otherwise.
   }
 }
 ```
+
+**Permission Required:** `view_events`
+
+---
+
+#### Get Event Metrics
+**Endpoint:** `GET /admin/events/metrics`
+
+**Description:** Returns aggregated event metrics with 7-day growth percentages. Calculates metrics for ALL events in the system (no filters applied). This endpoint replaces frontend calculations that were previously done from the `/admin/events` endpoint.
+
+**Response:**
+```json
+{
+  "totalEvents": 50,
+  "totalEventsGrowth": 4.2,
+  "activeEvents": 0,
+  "activeEventsGrowth": 0,
+  "totalAttendees": 25,
+  "totalAttendeesGrowth": 4.2,
+  "totalSprayed": "4285000.00",
+  "totalSprayedGrowth": 4.2
+}
+```
+
+**Fields:**
+- `totalEvents`: Total number of events in the system
+- `totalEventsGrowth`: Percentage growth comparing current total events vs total events 7 days ago
+- `activeEvents`: Number of events with status `LIVE`
+- `activeEventsGrowth`: Percentage growth comparing current active events vs active events 7 days ago
+- `totalAttendees`: Total number of unique sprayers across all events (counted by `sprayerWallet.customer.userId`)
+- `totalAttendeesGrowth`: Percentage growth comparing current unique sprayers vs unique sprayers 7 days ago
+- `totalSprayed`: Total amount sprayed across all events (as decimal string, e.g., "4285000.00")
+- `totalSprayedGrowth`: Percentage growth comparing current total sprayed vs total sprayed 7 days ago
+
+**Growth Calculation:**
+- Growth percentages compare current totals vs totals from 7 days ago
+- Formula: `((current - previous) / previous) * 100`
+- If previous value is 0 and current > 0, returns 100%
+- If previous value is 0 and current is 0, returns 0%
+- Growth values are rounded to 1 decimal place
+
+**Permission Required:** `view_events`
+
+---
+
+#### Export Events to CSV
+**Endpoint:** `GET /admin/events/export`
+
+**Description:** Exports all events matching the provided filters to CSV format. Uses the same filter parameters as `GET /admin/events`. Maximum 100,000 records will be exported to prevent memory issues.
+
+**Query Parameters:**
+- `status` (optional): Filter by event status (`DRAFT`, `SCHEDULED`, `LIVE`, `ENDED`, `CANCELLED`)
+  - UI mapping: "Upcoming" → `SCHEDULED`, "Live" → `LIVE`, "Completed" → `ENDED`, "All" → omit parameter
+- `categories` (optional, array): Filter by event categories (multi-select). Common values: `Birthday`, `Wedding`, `Housewarming`, `Corporate`
+  - Example: `?categories=Birthday&categories=Wedding`
+- `search` (optional): Search by event title or host name
+- `hostUserId` (optional): Filter by host user ID
+- `startDate` (optional): Filter events starting from this date (ISO 8601)
+  - Quick date options (Today, This Week, This Month, Last 90 days) are calculated on frontend and sent as `startDate`/`endDate`
+- `endDate` (optional): Filter events starting before this date (ISO 8601)
+
+**Response:**
+- Content-Type: `text/csv`
+- Content-Disposition: `attachment; filename="events-export-YYYY-MM-DD.csv"`
+- CSV file with the following columns:
+  - Event Name
+  - Event Code
+  - Date (YYYY-MM-DD format)
+  - Revenue (totalSprayed as decimal string)
+  - Attendees (unique sprayer count)
+  - Status
+  - Location
+  - Category
+  - Host User (name or email)
+  - Created Date (YYYY-MM-DD format)
+
+**Example Request:**
+```
+GET /admin/events/export?status=LIVE&startDate=2025-01-01T00:00:00.000Z&endDate=2025-01-31T23:59:59.999Z
+```
+
+**Notes:**
+- All filters from `GET /admin/events` are supported
+- Data is processed in batches of 1,000 records to prevent memory issues
+- Maximum export limit is 100,000 records
+- Filename includes the current date in YYYY-MM-DD format
 
 **Permission Required:** `view_events`
 
@@ -883,21 +1062,99 @@ All endpoints below require authentication unless specified otherwise.
 - `limit` (optional, default: 20)
 - `status` (optional): Filter by payout status (`PENDING`, `PROCESSING`, `SUCCESS`, `FAILED`, `REJECTED`, `REVERSED`)
 - `userId` (optional): Filter by user ID
+- `requiresApproval` (optional): Filter by withdrawals requiring admin approval (boolean)
 - `startDate` (optional): Filter withdrawals from this date
 - `endDate` (optional): Filter withdrawals before this date
 
 **Response:** Paginated list of payout transactions (withdrawals) with user and bank account info
 
+**Response Example:**
+```json
+{
+  "withdrawals": [
+    {
+      "id": "payout-uuid",
+      "walletId": "wallet-uuid",
+      "bankAccountId": "bank-account-uuid",
+      "amount": "100000000000",
+      "fee": "3000000000",
+      "status": "PENDING",
+      "transactionId": "transaction-uuid",
+      "providerTransactionRef": "provider-ref-123",
+      "requiresApproval": true,
+      "approvalReason": "Exceeds daily withdrawal limit",
+      "approvedBy": null,
+      "approvedAt": null,
+      "rejectedBy": null,
+      "rejectedAt": null,
+      "rejectionReason": null,
+      "createdAt": "2025-02-17T00:00:00.000Z",
+      "updatedAt": "2025-02-17T00:00:00.000Z",
+      "user": {
+        "id": "user-uuid",
+        "email": "user@example.com",
+        "firstName": "John",
+        "lastName": "Doe",
+        "username": "johndoe"
+      },
+      "bankAccount": {
+        "id": "bank-account-uuid",
+        "accountName": "John Doe",
+        "accountNumber": "1234567890",
+        "bankCode": "058"
+      },
+      "transaction": {
+        "id": "transaction-uuid",
+        "reference": "PAYOUT-xxx",
+        "status": "PENDING",
+        "createdAt": "2025-02-17T00:00:00.000Z"
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 100,
+    "totalPages": 5
+  }
+}
+```
+
 **Permission Required:** `view_withdrawals`
+
+**Note:** Use `requiresApproval=true` filter to show withdrawals pending admin approval (e.g., withdrawals that exceed daily limits).
 
 ---
 
 #### Approve Withdrawal
 **Endpoint:** `POST /admin/withdrawals/:id/approve`
 
-**Note:** Withdrawals are typically auto-processed. This endpoint can trigger reprocessing if needed.
+**Description:** 
+- For withdrawals that require approval (exceed daily limit): Processes the payout (debits wallet, calls provider), updates status to `PROCESSING`. Status will be updated to `SUCCESS` by webhook when provider confirms.
+- For other withdrawals: Updates status to `PROCESSING` (will be processed by webhook).
 
-**Response:** Updated payout transaction object
+**Important:** Only webhooks (or transaction status requery) can set status to `SUCCESS`. Admin approval sets to `PROCESSING`, and webhook updates to `SUCCESS` when provider confirms the transfer.
+
+**Response:** Updated payout transaction with approval information
+
+**Response Example:**
+```json
+{
+  "id": "payout-uuid",
+  "status": "PROCESSING",
+  "requiresApproval": false,
+  "approvedBy": "admin-uuid",
+  "approvedAt": "2025-02-17T00:30:00.000Z",
+  "approvalReason": null,
+  "providerTransactionRef": "provider-ref-123",
+  ...
+}
+```
+
+**Error Responses:**
+- `404`: Withdrawal not found
+- `400`: Insufficient balance (for approvals requiring processing)
+- `403`: Insufficient permissions
 
 **Permission Required:** `manage_withdrawals` (SUPER_ADMIN or FINANCE_ADMIN only)
 
@@ -906,6 +1163,10 @@ All endpoints below require authentication unless specified otherwise.
 #### Reject Withdrawal
 **Endpoint:** `POST /admin/withdrawals/:id/reject`
 
+**Description:**
+- For withdrawals that require approval (pending approval): Deletes placeholder transaction, marks as `REJECTED` without debiting wallet (since wallet was never debited).
+- For processed withdrawals: Updates status to `REJECTED` and marks transaction as `FAILED`.
+
 **Request:**
 ```json
 {
@@ -913,9 +1174,52 @@ All endpoints below require authentication unless specified otherwise.
 }
 ```
 
-**Response:** Updated payout transaction object with status changed to `REJECTED`
+**Response:** Updated payout transaction with rejection information
+
+**Response Example:**
+```json
+{
+  "id": "payout-uuid",
+  "status": "REJECTED",
+  "requiresApproval": false,
+  "rejectedBy": "admin-uuid",
+  "rejectedAt": "2025-02-17T00:30:00.000Z",
+  "rejectionReason": "Insufficient funds or suspicious activity",
+  ...
+}
+```
+
+**Error Responses:**
+- `404`: Withdrawal not found
+- `400`: Withdrawal is already rejected or successful
+- `403`: Insufficient permissions
 
 **Permission Required:** `manage_withdrawals` (SUPER_ADMIN or FINANCE_ADMIN only)
+
+---
+
+#### Withdrawal Approval Flow
+
+**Overview:**
+When a Tier_2 user (with or without utility bill approval) tries to withdraw above their daily limit:
+- Tier_2 without utility bill approval: Limit is 1M Naira
+- Tier_2 with utility bill approval: Limit is 10M Naira
+
+The system creates a `PayoutTransaction` with:
+- `status: PENDING`
+- `requiresApproval: true`
+- `approvalReason: "Exceeds daily withdrawal limit"`
+- Wallet is **NOT** debited until admin approves
+
+**Admin Workflow:**
+1. Admin views withdrawals with `requiresApproval=true` filter
+2. Admin reviews withdrawal details (amount, user, bank account)
+3. Admin approves → Payout is processed (wallet debited, provider called), status set to `PROCESSING`
+4. Admin rejects → Withdrawal marked as `REJECTED`, no wallet debit, placeholder transaction deleted
+
+**Status Flow:**
+- `PENDING` (requiresApproval=true) → Admin approval → `PROCESSING` → Webhook → `SUCCESS`
+- `PENDING` (requiresApproval=true) → Admin rejection → `REJECTED`
 
 ---
 
@@ -1878,7 +2182,13 @@ const roles = await api.getRoles();
 
 14. **Admin Notifications**: Admin notifications require the admin to have a linked `userId`. If an admin doesn't have a userId, notification endpoints will return a `400` error.
 
-15. **Withdrawal Approval**: Withdrawals are typically auto-processed by the payment provider. The approve/reject endpoints can be used for manual intervention if needed.
+15. **Withdrawal Approval Flow**: 
+    - Withdrawals that exceed daily limits (Tier_2 without utility bill: 1M Naira, Tier_2 with utility bill: 10M Naira) require admin approval
+    - These withdrawals are created with `requiresApproval: true` and `status: PENDING`
+    - Wallet is **NOT** debited until admin approves
+    - Admin can approve (processes payout, sets status to `PROCESSING`) or reject (marks as `REJECTED`, no wallet debit)
+    - Only webhooks can set status to `SUCCESS` after provider confirms the transfer
+    - Use `requiresApproval=true` filter in `GET /admin/withdrawals` to show pending approvals
 
 16. **Event Reports**: Event reports are generated as CSV files. Transaction receipts are also CSV format.
 
