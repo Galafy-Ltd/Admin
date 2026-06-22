@@ -4,14 +4,15 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { Key } from 'lucide-react';
 import { authApi } from '@/lib/api/auth';
 import { forgotPasswordSchema } from '@/lib/utils/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { AuthAlert } from '@/components/ui/AuthAlert';
 
 export default function ForgotPasswordPage() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -21,12 +22,13 @@ export default function ForgotPasswordPage() {
   });
 
   const onSubmit = async (data: { email: string }) => {
+    setFormError(null);
     try {
       await authApi.forgotPassword(data.email);
       setIsSubmitted(true);
-    } catch (error: any) {
-      console.error('Forgot password error:', error);
-      alert(error?.response?.data?.message || 'Failed to send reset link. Please try again.');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setFormError(err?.response?.data?.message || 'Failed to send reset link. Please try again.');
     }
   };
 
@@ -55,7 +57,7 @@ export default function ForgotPasswordPage() {
         <div className="w-full max-w-md">
           <div className="mb-8">
             <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-white font-bold text-xl">G</span>
+            <img src="/icon.svg" alt="galafyicon" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">GalaPay Admin</h1>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Forgot Password?</h2>
@@ -63,6 +65,7 @@ export default function ForgotPasswordPage() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {formError && <AuthAlert variant="error" message={formError} />}
             <div>
               <Input
                 label="Email Address"
@@ -89,24 +92,24 @@ export default function ForgotPasswordPage() {
 
       <div className="hidden lg:flex flex-1 bg-[#0D2A68] items-center justify-center p-8">
         <div className="max-w-md text-white">
-          <div className="w-16 h-16 bg-blue-500 rounded-lg flex items-center justify-center mb-6">
-            <Key className="h-8 w-8" />
+          <div className="w-16 h-16 rounded-lg flex items-center justify-center mb-6">
+            <img src="/key.png" alt="key" className="w-full h-full" />
           </div>
           <h2 className="text-3xl font-bold mb-4">Secure Access, Quick Recovery.</h2>
           <p className="text-gray-300 mb-8">
             Reset your password securely and regain access to your admin dashboard in minutes.
           </p>
           <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🔒</span>
+            <li className="flex items-center gap-3">
+              <img src="/encryp.png" alt="encrypted" />
               <span>Encrypted email delivery</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">⏰</span>
+            <li className="flex items-center gap-3">
+              <img src="/clock.png" alt="time" />
               <span>15-minute secure link</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">👤</span>
+            <li className="flex items-center gap-3">
+              <img src="/account.png" alt="account" />
               <span>Account verification required</span>
             </li>
           </ul>

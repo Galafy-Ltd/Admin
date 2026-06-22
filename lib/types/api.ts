@@ -42,11 +42,20 @@ export interface User {
   customer?: Customer;
 }
 
+export type KycTier = 'Tier_0' | 'Tier_1' | 'Tier_2' | 'Tier_3';
+export type TierUpgradeStatus = 'PENDING' | 'COMPLETED';
+export type Tier1FaceStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+
 export interface Customer {
   id: string;
-  tier: 'TIER_0' | 'TIER_1' | 'TIER_2' | 'TIER_3';
+  tier: KycTier;
   isAmlRestricted: boolean;
-  utilityBillStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | null;
+  amlRestrictedAt?: string | null;
+  amlRestrictionReason?: string | null;
+  tier1FaceStatus?: Tier1FaceStatus | null;
+  tier1AccountStatus?: string | null;
+  tier2UpgradeStatus?: TierUpgradeStatus | null;
+  tier3UpgradeStatus?: TierUpgradeStatus | null;
   wallets?: Wallet[];
   withdrawalLimit?: WithdrawalLimit;
 }
@@ -92,10 +101,13 @@ export interface TransactionAnalytics {
   totalWalletBalance: string;
   totalWithdrawn: string;
   totalReceived: string;
+  totalWalletBalanceGrowth?: number;
+  totalWithdrawnGrowth?: number;
+  totalReceivedGrowth?: number;
   chartData: Array<{
-    date: string;      // YYYY-MM-DD format
-    amount: string;    // Amount in kobo
-    count: number;     // Transaction count
+    date: string;
+    amount: string;
+    count: number;
   }>;
   cached: boolean;
   timestamp: string;
@@ -378,17 +390,29 @@ export interface TopSprayer {
   lastSprayAt?: string;
 }
 
-// Transaction Types (assumed)
+export type TransactionType = 'INFLOW' | 'SPRAY' | 'PAYOUT' | 'REFUND' | 'ADJUSTMENT';
+export type TransactionDirection = 'CREDIT' | 'DEBIT';
+export type TransactionStatus = 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'REVERSED';
+
 export interface Transaction {
   id: string;
-  userId: string;
-  user?: User;
+  walletId: string;
   amount: string;
-  type: 'Received' | 'Withdraw';
-  tier: string;
-  status: string;
-  date: string;
-  referenceCode?: string;
+  type: TransactionType;
+  direction: TransactionDirection;
+  status: TransactionStatus;
+  reference: string;
+  narration?: string | null;
+  externalReference?: string | null;
+  currencyId?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+  user?: User;
+  event?: {
+    id: string;
+    title: string;
+    code: string;
+  };
 }
 
 export interface TransactionsResponse {
@@ -397,29 +421,45 @@ export interface TransactionsResponse {
 }
 
 export interface TransactionDetails extends Transaction {
-  transactionId: string;
-  dateTime: string;
-  paymentMethod: string;
-  destination?: string;
-  channel: string;
-  fees: string;
-  netAmount: string;
-  description?: string;
+  wallet?: {
+    id: string;
+    customer?: {
+      user?: User;
+    };
+  };
+  spray?: {
+    event?: {
+      id: string;
+      title: string;
+      code: string;
+      status: string;
+    };
+  };
+  fundingTransaction?: Transaction | null;
+  payoutTransaction?: {
+    id: string;
+    status: string;
+    fee?: string;
+  } | null;
 }
 
 // Withdrawal Types
 export interface Withdrawal {
   id: string;
-  userId: string;
+  userId?: string;
   user?: User;
   amount: string;
+  fee?: string;
   status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'REJECTED' | 'REVERSED';
-  date: string;
   createdAt: string;
+  requiresApproval?: boolean;
+  approvalReason?: string | null;
+  rejectionReason?: string | null;
   bankAccount?: {
     accountNumber: string;
-    bankName: string;
+    bankName?: string;
     accountName: string;
+    bankCode?: string;
   };
 }
 
@@ -429,19 +469,24 @@ export interface WithdrawalsResponse {
   pagination: Pagination;
 }
 
-// Notifications Types (assumed)
+export type AdminNotificationType = 'NEW_USER' | 'WITHDRAWAL' | 'TIER_UPGRADE' | 'INFLOW';
+
 export interface Notification {
   id: string;
+  type: AdminNotificationType | string;
   title: string;
-  description: string;
-  status: 'Pending' | 'Delivered' | 'Failed';
-  sentTo: string;
-  recipients: number;
+  message: string;
+  data?: Record<string, unknown> | null;
+  read: boolean;
   createdAt: string;
 }
 
 export interface NotificationsResponse {
   notifications: Notification[];
   pagination: Pagination;
+}
+
+export interface UnreadCountResponse {
+  count: number;
 }
 

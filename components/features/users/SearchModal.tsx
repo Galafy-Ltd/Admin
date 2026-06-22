@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
-import { formatTier } from '@/lib/utils/format';
+import { Avatar } from '@/components/ui/Avatar';
+import { formatTierLabel } from '@/lib/utils/kyc';
 import type { User } from '@/lib/types/api';
 
 interface SearchModalProps {
@@ -69,35 +70,29 @@ export function SearchModal({ isOpen, onClose, users, isLoading, query }: Search
                   className="w-full text-left p-4 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
-                    {user.profilePicture ? (
-                      <img
-                        src={user.profilePicture}
-                        alt={`${user.firstName} ${user.lastName}`}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                        <span className="text-gray-600 font-medium text-sm">
-                          {user.firstName?.charAt(0)?.toUpperCase() || 'U'}
-                        </span>
-                      </div>
-                    )}
+                    <Avatar
+                      src={user.profilePicture}
+                      name={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
+                      email={user.email}
+                      size="md"
+                      className="w-12 h-12"
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="font-medium text-gray-900 truncate">
                           {user.firstName} {user.lastName}
                         </p>
-                        {user.customer?.tier && (
+                        {user.customer?.tier !== undefined && (
                           <Badge
                             variant={
-                              user.customer.tier === 'TIER_1'
+                              user.customer.tier === 'Tier_1'
                                 ? 'info'
-                                : user.customer.tier === 'TIER_2'
+                                : user.customer.tier === 'Tier_2'
                                 ? 'warning'
                                 : 'success'
                             }
                           >
-                            {formatTier(user.customer.tier)}
+                            {formatTierLabel(user.customer.tier)}
                           </Badge>
                         )}
                       </div>

@@ -1,7 +1,25 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import {
+  clearLocalAuthSession,
+  AUTH_SESSION_NOTICE_STORAGE_KEY,
+  AUTH_SESSION_NOTICE_EXPIRED,
+} from '@/lib/utils/auth';
 
 // Base URL includes /api prefix as the server routes are under /api/admin/...
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+
+let sessionExpiryRedirectScheduled = false;
+
+function redirectToLoginSessionExpired() {
+  if (typeof window === 'undefined' || sessionExpiryRedirectScheduled) return;
+  sessionExpiryRedirectScheduled = true;
+  try {
+    sessionStorage.setItem(AUTH_SESSION_NOTICE_STORAGE_KEY, AUTH_SESSION_NOTICE_EXPIRED);
+  } catch {
+    /* ignore */
+  }
+  window.location.assign('/login');
+}
 
 class ApiClient {
   private client: AxiosInstance;
@@ -13,6 +31,19 @@ class ApiClient {
       baseURL: API_BASE_URL,
       headers: {
         'Content-Type': 'application/json',
+      },
+      paramsSerializer: (params) => {
+        if (!params) return '';
+        const searchParams = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value === undefined || value === null) return;
+          if (Array.isArray(value)) {
+            value.forEach((v) => searchParams.append(key, String(v)));
+          } else {
+            searchParams.append(key, String(value));
+          }
+        });
+        return searchParams.toString();
       },
     });
 
@@ -29,7 +60,7 @@ class ApiClient {
       
       // Log token status (without exposing full token)
       if (this.accessToken) {
-        console.log('[API Client] Access token loaded:', this.accessToken);
+        console.log('[API Client] Access token loaded from storage');
       } else {
         console.warn('[API Client] No access token found in storage');
       }
@@ -93,38 +124,47 @@ class ApiClient {
           requestHeaders: originalRequest?.headers,
         });
 
-        // Handle 401 and 403 errors - try to refresh token
-        if ((error.response?.status === 401 || error.response?.status === 403) && 
-            !originalRequest._retry && 
-            this.refreshToken) {
-          originalRequest._retry = true;
+        const status = error.response?.status;
+        const reqUrl = originalRequest?.url ?? '';
 
-          console.log('[API Client] Attempting to refresh token...');
+        // Do not treat credential / public auth failures as "session expired"
+        const isPublicAuthPath =
+          reqUrl.includes('/admin/auth/login') ||
+          reqUrl.includes('/admin/auth/forgot-password') ||
+          reqUrl.includes('/admin/auth/reset-password');
 
-          try {
-            const refreshed = await this.refreshAccessToken();
-            if (refreshed && originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${this.accessToken}`;
-              console.log('[API Client] Token refreshed, retrying request...');
-              return this.client(originalRequest);
-            }
-          } catch (refreshError) {
-            console.error('[API Client] Token refresh failed:', refreshError);
-            // Refresh failed, logout
-            this.logout();
-            if (typeof window !== 'undefined') {
-              window.location.href = '/login';
-            }
-            return Promise.reject(refreshError);
+        if (status === 401 && !isPublicAuthPath) {
+          const isRefreshCall = reqUrl.includes('/admin/auth/refresh');
+
+          if (isRefreshCall) {
+            this.clearTokens();
+            redirectToLoginSessionExpired();
+            return Promise.reject(error);
           }
-        }
 
-        // If 403 and no refresh token or refresh failed, redirect to login
-        if (error.response?.status === 403 && !this.refreshToken) {
-          console.warn('[API Client] 403 Forbidden - No refresh token available');
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
+          if (!originalRequest._retry && this.refreshToken) {
+            originalRequest._retry = true;
+            console.log('[API Client] Attempting to refresh token...');
+            try {
+              const refreshed = await this.refreshAccessToken();
+              if (refreshed && originalRequest.headers) {
+                originalRequest.headers.Authorization = `Bearer ${this.accessToken}`;
+                console.log('[API Client] Token refreshed, retrying request...');
+                return this.client(originalRequest);
+              }
+            } catch (refreshError) {
+              console.error('[API Client] Token refresh failed:', refreshError);
+            }
+            // Refresh threw or returned false — clear session and send user to login
+            this.clearTokens();
+            redirectToLoginSessionExpired();
+            return Promise.reject(error);
           }
+
+          // 401 and no refresh token (or retry already attempted)
+          this.clearTokens();
+          redirectToLoginSessionExpired();
+          return Promise.reject(error);
         }
 
         return Promise.reject(error);
@@ -177,11 +217,7 @@ class ApiClient {
   clearTokens() {
     this.accessToken = null;
     this.refreshToken = null;
-
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('admin_access_token');
-      localStorage.removeItem('admin_refresh_token');
-    }
+    clearLocalAuthSession();
   }
 
   logout() {

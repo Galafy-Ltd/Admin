@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Users, Calendar, DollarSign, Clock } from 'lucide-react';
+import { Users, Calendar, Clock } from 'lucide-react';
+import { NairaIcon } from '@/components/ui/NairaIcon';
 import { MetricCard } from '@/components/features/dashboard/MetricCard';
 import { TransactionChart } from '@/components/features/dashboard/TransactionChart';
 import { Card } from '@/components/ui/Card';
@@ -63,8 +64,8 @@ export default function DashboardPage() {
     totalEvents: dashboardMetrics?.totalEvents ?? 0,
     totalEventsGrowth: dashboardMetrics?.totalEventsGrowth ?? 0,
     revenue: dashboardMetrics?.revenue
-      ? formatCurrencyAbbreviated(dashboardMetrics.revenue)
-      : 'N0',
+      ? formatCurrencyAbbreviated(dashboardMetrics.revenue, true)
+      : '₦0',
     revenueGrowth: dashboardMetrics?.revenueGrowth ?? 0,
     pendingKYC: dashboardMetrics?.pendingKyc ?? 0,
   };
@@ -96,7 +97,7 @@ export default function DashboardPage() {
         <MetricCard
           title="Revenue"
           value={metrics.revenue}
-          icon={DollarSign}
+          icon={NairaIcon}
           change={metrics.revenueGrowth}
           changeLabel="vs last 7 days"
         />

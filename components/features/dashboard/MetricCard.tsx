@@ -6,7 +6,7 @@ import { LucideIcon } from 'lucide-react';
 interface MetricCardProps {
   title: string;
   value: string | number;
-  icon: LucideIcon;
+  icon: LucideIcon | React.ComponentType<{ className?: string }>;
   change?: number;
   changeLabel?: string;
   attention?: boolean;

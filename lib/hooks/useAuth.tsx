@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/auth';
 import apiClient from '@/lib/api/client';
 import type { Admin, LoginRequest } from '@/lib/types/api';
-import { getStoredTokens, clearStoredTokens } from '@/lib/utils/auth';
+import { getStoredTokens } from '@/lib/utils/auth';
 
 interface AuthContextType {
   admin: Admin | null;
@@ -57,8 +57,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     mutationFn: () => authApi.logout(),
     onSuccess: () => {
       setAdmin(null);
-      clearStoredTokens();
-      localStorage.removeItem('admin_data');
       queryClient.clear();
       router.push('/login');
     },

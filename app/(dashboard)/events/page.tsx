@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Play, Users, DollarSign, Filter, Download, X } from 'lucide-react';
+import { Calendar, Play, Users, Filter, Download, X } from 'lucide-react';
+import { NairaIcon } from '@/components/ui/NairaIcon';
 import { Card } from '@/components/ui/Card';
 import { MetricCard } from '@/components/features/dashboard/MetricCard';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
@@ -109,7 +110,7 @@ export default function EventsPage() {
             <MetricCard title="Total Events" value={metrics.totalEvents} icon={Calendar} change={metrics.totalEventsGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Active Events" value={metrics.activeEvents} icon={Play} change={metrics.activeEventsGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Total Attendees" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
-            <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed)} icon={DollarSign} change={metrics.totalSprayedGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed)} icon={NairaIcon} change={metrics.totalSprayedGrowth} changeLabel="vs last 7 days" />
           </>
         ) : null}
       </div>

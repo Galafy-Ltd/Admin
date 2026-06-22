@@ -6,7 +6,7 @@ export interface GetUsersParams {
   limit?: number;
   search?: string;
   tier?: string;
-  utilityBillStatus?: string;
+  kycStatus?: 'pending' | 'completed';
   isAmlRestricted?: boolean;
 }
 
@@ -18,6 +18,20 @@ export const usersApi = {
 
   async getUserDetails(userId: string): Promise<User> {
     const response = await apiClient.getClient().get<User>(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  async sendKycReminder(userId: string): Promise<{ message: string }> {
+    const response = await apiClient.getClient().post<{ message: string }>(
+      `/admin/users/${userId}/send-kyc-reminder`,
+    );
+    return response.data;
+  },
+
+  async approveTier3(customerId: string, notes?: string): Promise<unknown> {
+    const response = await apiClient.getClient().patch(`/admin/customers/${customerId}/approve-tier-3`, {
+      notes,
+    });
     return response.data;
   },
 
@@ -46,4 +60,3 @@ export const usersApi = {
     return response.data;
   },
 };
-

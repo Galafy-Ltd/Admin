@@ -9,10 +9,12 @@ import { adminsApi } from '@/lib/api/admins';
 import { acceptInviteSchema } from '@/lib/utils/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { AuthAlert } from '@/components/ui/AuthAlert';
 
 function AcceptInviteForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
@@ -52,12 +54,13 @@ function AcceptInviteForm() {
   };
 
   const onSubmit = async (data: { token: string; password: string; confirmPassword: string }) => {
+    setFormError(null);
     try {
       await adminsApi.acceptInvite({ token: data.token, password: data.password });
       router.push('/login?invite=accepted');
-    } catch (error: any) {
-      console.error('Accept invite error:', error);
-      alert(error?.response?.data?.message || 'Failed to accept invite. Please try again.');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setFormError(err?.response?.data?.message || 'Failed to accept invite. Please try again.');
     }
   };
 
@@ -81,6 +84,7 @@ function AcceptInviteForm() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {formError && <AuthAlert variant="error" message={formError} />}
           <input type="hidden" {...register('token')} />
 
           <div>

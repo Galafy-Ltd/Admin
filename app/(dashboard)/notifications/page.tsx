@@ -1,54 +1,63 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Search, MoreVertical } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { UserPlus, ArrowDownToLine, TrendingUp, Wallet } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import { formatRelativeTime } from '@/lib/utils/format';
 import { notificationsApi } from '@/lib/api/notifications';
-import type { Notification } from '@/lib/types/api';
+import type { Notification, AdminNotificationType } from '@/lib/types/api';
+
+function notificationIcon(type: string) {
+  switch (type as AdminNotificationType) {
+    case 'NEW_USER':
+      return UserPlus;
+    case 'WITHDRAWAL':
+      return ArrowDownToLine;
+    case 'TIER_UPGRADE':
+      return TrendingUp;
+    case 'INFLOW':
+      return Wallet;
+    default:
+      return Wallet;
+  }
+}
 
 export default function NotificationsPage() {
-  const { data: notificationsData, isLoading } = useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => notificationsApi.getNotifications({ limit: 20 }),
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(1);
+  const limit = 20;
+
+  const { data: notificationsData, isLoading, error } = useQuery({
+    queryKey: ['notifications', { page, limit }],
+    queryFn: () => notificationsApi.getNotifications({ page, limit }),
+  });
+
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => notificationsApi.markAsRead(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unread-count'] });
+    },
   });
 
   const notifications: Notification[] = notificationsData?.notifications || [];
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'Delivered':
-        return 'success';
-      case 'Pending':
-        return 'warning';
-      case 'Failed':
-        return 'danger';
-      default:
-        return 'default';
-    }
-  };
+  const pagination = notificationsData?.pagination;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Notifications</h1>
-        <p className="text-gray-600">Manage and send notifications to your users.</p>
+        <p className="text-gray-600">Platform activity: new users, withdrawals, upgrades, and inflows.</p>
       </div>
 
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
-          <button className="p-2 hover:bg-gray-100 rounded-lg">
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button className="p-2 hover:bg-gray-100 rounded-lg">
-            <ChevronRight className="h-5 w-5" />
-          </button>
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          Failed to load notifications. Please try again later.
         </div>
-        <button className="p-2 hover:bg-gray-100 rounded-lg">
-          <Search className="h-5 w-5" />
-        </button>
-      </div>
+      )}
 
       <div className="space-y-4">
         {isLoading ? (
@@ -57,38 +66,49 @@ export default function NotificationsPage() {
           </Card>
         ) : notifications.length === 0 ? (
           <Card>
-            <div className="text-center py-8 text-gray-500">No notifications found</div>
+            <div className="text-center py-8 text-gray-500">No notifications yet</div>
           </Card>
         ) : (
-          notifications.map((notification) => (
-            <Card key={notification.id} className="relative">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                    <h3 className="font-semibold text-gray-900">{notification.title}</h3>
-                    <Badge variant={getStatusBadgeVariant(notification.status)}>
-                      {notification.status}
-                    </Badge>
+          notifications.map((notification) => {
+            const Icon = notificationIcon(notification.type);
+            return (
+              <Card
+                key={notification.id}
+                className={`cursor-pointer transition-colors hover:bg-gray-50 ${!notification.read ? 'border-l-4 border-l-blue-600' : ''}`}
+                onClick={() => {
+                  if (!notification.read) markReadMutation.mutate(notification.id);
+                }}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-blue-50">
+                    <Icon className="h-5 w-5 text-blue-600" />
                   </div>
-                  <p className="text-gray-600 mb-3">{notification.description}</p>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span>Sent to: {notification.sentTo}</span>
-                    <span>•</span>
-                    <span>{formatRelativeTime(notification.createdAt)}</span>
-                    <span>•</span>
-                    <span>{notification.recipients.toLocaleString()} recipients</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-gray-900">{notification.title}</h3>
+                      {!notification.read && <Badge variant="info">New</Badge>}
+                      <Badge variant="default">{notification.type.replace('_', ' ')}</Badge>
+                    </div>
+                    <p className="text-gray-600 mb-2">{notification.message}</p>
+                    <p className="text-sm text-gray-500">{formatRelativeTime(notification.createdAt)}</p>
                   </div>
                 </div>
-                <button className="text-gray-400 hover:text-gray-600 p-2">
-                  <MoreVertical className="h-5 w-5" />
-                </button>
-              </div>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </div>
+
+      {pagination && pagination.totalPages > 1 && (
+        <Pagination
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.total}
+          itemsPerPage={limit}
+          onPageChange={setPage}
+          itemName="Notifications"
+        />
+      )}
     </div>
   );
 }
-

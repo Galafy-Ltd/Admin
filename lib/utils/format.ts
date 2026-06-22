@@ -54,26 +54,25 @@ export const formatPercentage = (value: number, decimals: number = 1): string =>
 };
 
 export const formatTier = (tier: string): string => {
-  return tier.replace('TIER_', 'Tier ');
+  return tier.replace(/^TIER_/i, 'Tier_').replace('Tier_', 'Tier ');
 };
 
-export const formatCurrencyAbbreviated = (amount: string | number): string => {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  if (isNaN(numAmount)) return 'N0';
+/** Format amount stored in kobo (e.g. AdminFee revenue) as abbreviated Naira */
+export const formatCurrencyAbbreviated = (amount: string | number, inKobo = false): string => {
+  let numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(numAmount)) return '₦0';
+  if (inKobo) numAmount = numAmount / 100;
 
   const absAmount = Math.abs(numAmount);
-  
+
   if (absAmount >= 1000000) {
-    // Millions
     const millions = absAmount / 1000000;
-    return `N${millions.toFixed(1)}M`;
-  } else if (absAmount >= 1000) {
-    // Thousands
-    const thousands = absAmount / 1000;
-    return `N${thousands.toFixed(1)}K`;
-  } else {
-    // Less than 1000
-    return `N${Math.round(absAmount)}`;
+    return `₦${millions.toFixed(1)}M`;
   }
+  if (absAmount >= 1000) {
+    const thousands = absAmount / 1000;
+    return `₦${thousands.toFixed(1)}K`;
+  }
+  return `₦${Math.round(absAmount)}`;
 };
 

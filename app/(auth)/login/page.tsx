@@ -1,19 +1,26 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Key } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { loginSchema } from '@/lib/utils/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { AuthAlert } from '@/components/ui/AuthAlert';
 import type { LoginRequest } from '@/lib/types/api';
+import {
+  AUTH_SESSION_NOTICE_STORAGE_KEY,
+  AUTH_SESSION_NOTICE_EXPIRED,
+} from '@/lib/utils/auth';
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const router = useRouter();
   const { login } = useAuth();
   const {
@@ -24,12 +31,24 @@ export default function LoginPage() {
     resolver: zodResolver(loginSchema),
   });
 
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(AUTH_SESSION_NOTICE_STORAGE_KEY) === AUTH_SESSION_NOTICE_EXPIRED) {
+        setSessionNotice('Your session has expired. Please sign in again.');
+        sessionStorage.removeItem(AUTH_SESSION_NOTICE_STORAGE_KEY);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const onSubmit = async (data: LoginRequest) => {
+    setLoginError(null);
     try {
       await login(data);
-    } catch (error: any) {
-      console.error('Login error:', error);
-      alert(error?.response?.data?.message || 'Login failed. Please try again.');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setLoginError(err?.response?.data?.message || 'Login failed. Please try again.');
     }
   };
 
@@ -46,6 +65,8 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {sessionNotice && <AuthAlert variant="warning" message={sessionNotice} />}
+            {loginError && <AuthAlert variant="error" message={loginError} />}
             <div>
               <Input
                 label="Email Address"
@@ -96,24 +117,24 @@ export default function LoginPage() {
 
       <div className="hidden lg:flex flex-1 bg-[#0D2A68] items-center justify-center p-8">
         <div className="max-w-md text-white">
-          <div className="w-16 h-16 bg-white/20 rounded-lg flex items-center justify-center mb-6">
-            <Key className="h-8 w-8" />
+          <div className="w-16 h-16 rounded-lg flex items-center justify-center mb-6">
+            <img src="/key.png" alt="key" className="w-full h-full" />
           </div>
           <h2 className="text-3xl font-bold mb-4">Secure Access, Quick Recovery.</h2>
           <p className="text-gray-300 mb-8">
             Reset your password securely and regain access to your admin dashboard in minutes.
           </p>
           <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🔒</span>
+            <li className="flex items-center gap-3">
+              <img src="/encryp.png" alt="encrypted" />
               <span>Encrypted email delivery</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">⏰</span>
+            <li className="flex items-center gap-3">
+              <img src="/clock.png" alt="time" />
               <span>15-minute secure link</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">👤</span>
+            <li className="flex items-center gap-3">
+              <img src="/account.png" alt="account" />
               <span>Account verification required</span>
             </li>
           </ul>

@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Filter, Download, X } from 'lucide-react';
+import { Search, Download, X } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
@@ -11,24 +11,33 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Pagination } from '@/components/ui/Pagination';
+import { Avatar } from '@/components/ui/Avatar';
 import { UserDetailsModal } from '@/components/features/users/UserDetailsModal';
-import { formatCurrency, formatTier } from '@/lib/utils/format';
+import { formatCurrency } from '@/lib/utils/format';
+import { formatTierLabel, getTierKycStatus } from '@/lib/utils/kyc';
 import { usersApi } from '@/lib/api/users';
-import type { User } from '@/lib/types/api';
+import type { User, KycTier } from '@/lib/types/api';
+
+function tierBadgeVariant(tier?: KycTier | null): 'info' | 'warning' | 'success' | 'default' {
+  if (!tier || tier === 'Tier_0') return 'default';
+  if (tier === 'Tier_1') return 'info';
+  if (tier === 'Tier_2') return 'warning';
+  return 'success';
+}
 
 function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
-  
+
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const limit = 20;
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
   }, [search, tierFilter, statusFilter]);
@@ -39,17 +48,17 @@ function UsersPageContent() {
     router.push(`/users${params.toString() ? `?${params.toString()}` : ''}`);
   };
 
-  const handleUserClick = (userId: string) => {
-    router.push(`/users?userId=${userId}`);
+  const handleUserClick = (id: string) => {
+    router.push(`/users?userId=${id}`);
   };
 
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ['users', { search, tier: tierFilter !== 'all' ? tierFilter : undefined, utilityBillStatus: statusFilter !== 'all' ? statusFilter : undefined, page, limit }],
+    queryKey: ['users', { search, tier: tierFilter, kycStatus: statusFilter, page, limit }],
     queryFn: () =>
       usersApi.getUsers({
-        search,
+        search: search || undefined,
         tier: tierFilter !== 'all' ? tierFilter : undefined,
-        utilityBillStatus: statusFilter !== 'all' ? statusFilter : undefined,
+        kycStatus: statusFilter !== 'all' ? (statusFilter as 'pending' | 'completed') : undefined,
         page,
         limit,
       }),
@@ -58,7 +67,6 @@ function UsersPageContent() {
   const users: User[] = usersData?.users || [];
   const pagination = usersData?.pagination;
 
-  // Check if any filters are currently applied
   const hasActiveFilters = useMemo(() => {
     return !!(search || tierFilter !== 'all' || statusFilter !== 'all');
   }, [search, tierFilter, statusFilter]);
@@ -72,15 +80,14 @@ function UsersPageContent() {
 
   const handleExport = async () => {
     setIsExporting(true);
+    setExportError(null);
     try {
-      const params: any = {};
+      const params: Record<string, string> = {};
       if (search) params.search = search;
       if (tierFilter !== 'all') params.tier = tierFilter;
-      if (statusFilter !== 'all') params.utilityBillStatus = statusFilter;
+      if (statusFilter !== 'all') params.kycStatus = statusFilter;
 
       const blob = await usersApi.exportUsers(params);
-      
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -89,9 +96,8 @@ function UsersPageContent() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert('Failed to export users. Please try again.');
+    } catch {
+      setExportError('Failed to export users. Please try again.');
     } finally {
       setIsExporting(false);
     }
@@ -131,15 +137,19 @@ function UsersPageContent() {
         <Select
           options={[
             { value: 'all', label: 'All Statuses' },
-            { value: 'PENDING', label: 'Pending' },
-            { value: 'APPROVED', label: 'Approved' },
-            { value: 'REJECTED', label: 'Rejected' },
-            { value: 'noBill', label: 'No Bill' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'completed', label: 'Completed' },
           ]}
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
       </div>
+
+      {exportError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+          {exportError}
+        </div>
+      )}
 
       <Card>
         <div className="flex items-center justify-between mb-4">
@@ -164,94 +174,64 @@ function UsersPageContent() {
               <TableHeader>Contact</TableHeader>
               <TableHeader>Wallet Balance</TableHeader>
               <TableHeader>Status</TableHeader>
-              <TableHeader>Actions</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={5} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                   No users found
                 </TableCell>
               </TableRow>
             ) : (
-              users.map((user) => (
-                <TableRow
-                  key={user.id}
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleUserClick(user.id)}
-                >
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      {user.profilePicture ? (
-                        <img
+              users.map((user) => {
+                const kycStatus = getTierKycStatus(user.customer);
+                return (
+                  <TableRow
+                    key={user.id}
+                    className="cursor-pointer hover:bg-gray-50"
+                    onClick={() => handleUserClick(user.id)}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar
                           src={user.profilePicture}
-                          alt={user.username || user.email}
-                          className="w-10 h-10 rounded-full object-cover"
+                          name={`${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username}
+                          email={user.email}
+                          size="md"
                         />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-gray-600 text-sm font-medium">
-                            {user.username?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
-                          </span>
+                        <div>
+                          <p className="font-medium">{user.username || user.email || 'Unknown User'}</p>
+                          <p className="text-sm text-gray-500">ID: {user.id.slice(0, 13)}</p>
                         </div>
-                      )}
-                      <div>
-                        <p className="font-medium">
-                          {user.username || user.email || 'Unknown User'}
-                        </p>
-                        <p className="text-sm text-gray-500">ID: {user.id.slice(0, 13)}</p>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {user.customer ? (
-                      <Badge variant={user.customer.tier === 'TIER_1' ? 'info' : user.customer.tier === 'TIER_2' ? 'warning' : 'success'}>
-                        {formatTier(user.customer.tier || 'TIER_0')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={tierBadgeVariant(user.customer?.tier)}>
+                        {formatTierLabel(user.customer?.tier)}
                       </Badge>
-                    ) : (
-                      <span className="text-gray-500">N/A</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="text-sm">{user.email}</p>
-                      {user.phone && (
-                        <p className="text-sm text-gray-500">{user.phone}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>{formatCurrency(user.customer?.wallets?.[0]?.availableBalance || '0')}</TableCell>
-                  <TableCell>
-                    {user.customer?.utilityBillStatus ? (
-                      <Badge
-                        variant={
-                          user.customer.utilityBillStatus === 'APPROVED'
-                            ? 'success'
-                            : user.customer.utilityBillStatus === 'PENDING'
-                            ? 'warning'
-                            : user.customer.utilityBillStatus === 'REJECTED'
-                            ? 'danger'
-                            : 'default'
-                        }
-                      >
-                        {user.customer.utilityBillStatus}
+                    </TableCell>
+                    <TableCell>
+                      <div>
+                        <p className="text-sm">{user.email}</p>
+                        {user.phone && <p className="text-sm text-gray-500">{user.phone}</p>}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatCurrency(user.customer?.wallets?.[0]?.availableBalance || '0')}</TableCell>
+                    <TableCell>
+                      <Badge variant={kycStatus === 'completed' ? 'success' : 'warning'}>
+                        {kycStatus === 'completed' ? 'Completed' : 'Pending'}
                       </Badge>
-                    ) : (
-                      <Badge variant="default">No Bill</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <button className="text-gray-400 hover:text-gray-600">⋯</button>
-                  </TableCell>
-                </TableRow>
-              ))
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
@@ -267,9 +247,7 @@ function UsersPageContent() {
         )}
       </Card>
 
-      {userId && (
-        <UserDetailsModal userId={userId} onClose={handleCloseModal} />
-      )}
+      {userId && <UserDetailsModal userId={userId} onClose={handleCloseModal} />}
     </div>
   );
 }
@@ -290,4 +268,3 @@ export default function UsersPage() {
     </Suspense>
   );
 }
-

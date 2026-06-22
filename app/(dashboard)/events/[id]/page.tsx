@@ -12,9 +12,9 @@ import {
   Search,
   ExternalLink,
   Users,
-  DollarSign,
   Mic,
 } from 'lucide-react';
+import { NairaIcon } from '@/components/ui/NairaIcon';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -164,7 +164,7 @@ export default function EventDetailsPage() {
         <Card>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="h-6 w-6 text-green-600" />
+              <NairaIcon className="h-6 w-6 text-green-600" />
             </div>
             <div>
               <p className="text-sm text-gray-600">Total Amount Sprayed</p>

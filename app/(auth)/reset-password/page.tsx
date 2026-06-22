@@ -4,15 +4,17 @@ import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Eye, EyeOff, Key, Check, X } from 'lucide-react';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
 import { authApi } from '@/lib/api/auth';
 import { resetPasswordSchema } from '@/lib/utils/validation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { AuthAlert } from '@/components/ui/AuthAlert';
 
 function ResetPasswordForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get('token');
@@ -46,16 +48,17 @@ function ResetPasswordForm() {
 
   const onSubmit = async (data: { password: string; confirmPassword: string }) => {
     if (!token) {
-      alert('Invalid reset token');
+      setFormError('Invalid reset token');
       return;
     }
 
+    setFormError(null);
     try {
       await authApi.resetPassword(token, data.password);
       router.push('/reset-success');
-    } catch (error: any) {
-      console.error('Reset password error:', error);
-      alert(error?.response?.data?.message || 'Failed to reset password. Please try again.');
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setFormError(err?.response?.data?.message || 'Failed to reset password. Please try again.');
     }
   };
 
@@ -75,14 +78,15 @@ function ResetPasswordForm() {
       <div className="flex-1 flex items-center justify-center bg-white p-8">
         <div className="w-full max-w-md">
           <div className="mb-8">
-            <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
-              <Key className="h-6 w-6 text-white" />
+            <div className="w-12 h-12 rounded-lg flex items-center justify-center mb-4">
+              <img src="/icon.svg" alt="galafyicon" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Reset Your Password</h1>
             <p className="text-gray-600">Create a new secure password for your account.</p>
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {formError && <AuthAlert variant="error" message={formError} />}
             <div>
               <div className="relative">
                 <Input
@@ -181,24 +185,24 @@ function ResetPasswordForm() {
 
       <div className="hidden lg:flex flex-1 bg-[#0D2A68] items-center justify-center p-8">
         <div className="max-w-md text-white">
-          <div className="w-16 h-16 bg-blue-500 rounded-lg flex items-center justify-center mb-6">
-            <Key className="h-8 w-8" />
+          <div className="w-16 h-16 rounded-lg flex items-center justify-center mb-6">
+            <img src="/key.png" alt="key" className="w-full h-full" />
           </div>
           <h2 className="text-3xl font-bold mb-4">Secure Access, Quick Recovery.</h2>
           <p className="text-gray-300 mb-8">
             Reset your password securely and regain access to your admin dashboard in minutes.
           </p>
           <ul className="space-y-4">
-            <li className="flex items-start gap-3">
-              <span className="text-xl">🔒</span>
+            <li className="flex items-center gap-3">
+              <img src="/encryp.png" alt="encrypted" />
               <span>Encrypted email delivery</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">⏰</span>
+            <li className="flex items-center gap-3">
+              <img src="/clock.png" alt="time" />
               <span>15-minute secure link</span>
             </li>
-            <li className="flex items-start gap-3">
-              <span className="text-xl">👤</span>
+            <li className="flex items-center gap-3">
+              <img src="/account.png" alt="account" />
               <span>Account verification required</span>
             </li>
           </ul>
