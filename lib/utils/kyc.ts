@@ -56,12 +56,11 @@ export function getTier3Status(customer?: Customer | null): 'pending' | 'complet
 
 /** Status for the user's current tier level (list column). */
 export function getTierKycStatus(customer?: Customer | null): KycTierStatus {
+  const tier = getCustomerTier(customer);
+  if (tier === 'Tier_0') return 'na';
   if (!customer) return 'pending';
 
-  const tier = getCustomerTier(customer);
   switch (tier) {
-    case 'Tier_0':
-      return 'na';
     case 'Tier_1':
       return isTier1Complete(customer) ? 'completed' : 'pending';
     case 'Tier_2':
@@ -73,9 +72,8 @@ export function getTierKycStatus(customer?: Customer | null): KycTierStatus {
   }
 }
 
-/** True when current tier KYC is pending (Tier_0 is never pending). */
+/** True when current tier KYC is pending (Tier_0 / no customer is never pending). */
 export function isPendingKyc(customer?: Customer | null): boolean {
-  if (!customer) return true;
   return getTierKycStatus(customer) === 'pending';
 }
 
