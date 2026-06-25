@@ -25,11 +25,19 @@ export const transactionsApi = {
     return response.data;
   },
 
-  async downloadReceipt(transactionId: string): Promise<Blob> {
+  async downloadReceipt(transactionId: string): Promise<{ blob: Blob; filename: string }> {
     const response = await apiClient.getClient().get(`/admin/transactions/${transactionId}/receipt`, {
       responseType: 'blob',
     });
-    return response.data;
+    const disposition = response.headers['content-disposition'] as string | undefined;
+    let filename = `receipt-${transactionId}.csv`;
+    if (disposition) {
+      const match = disposition.match(/filename="?([^";\n]+)"?/i);
+      if (match?.[1]) {
+        filename = match[1];
+      }
+    }
+    return { blob: response.data, filename };
   },
 };
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   Calendar,
   Clock,
@@ -12,7 +12,7 @@ import {
   Search,
   ExternalLink,
   Users,
-  Mic,
+  ArrowLeft,
 } from 'lucide-react';
 import { NairaIcon } from '@/components/ui/NairaIcon';
 import { Card } from '@/components/ui/Card';
@@ -28,6 +28,7 @@ import { formatDistanceToNow } from 'date-fns';
 
 export default function EventDetailsPage() {
   const params = useParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const eventId = params.id as string;
 
@@ -99,16 +100,37 @@ export default function EventDetailsPage() {
   }
 
   const statusBadgeVariant =
-    eventDetails.status === 'LIVE'
+    eventDetails.deletedAt
+      ? 'danger'
+      : eventDetails.status === 'LIVE'
       ? 'success'
-      : eventDetails.status === 'SCHEDULED'
+      : eventDetails.status === 'SCHEDULED' || eventDetails.status === 'DRAFT'
       ? 'warning'
-      : eventDetails.status === 'ENDED'
-      ? 'default'
+      : eventDetails.status === 'CANCELLED'
+      ? 'danger'
       : 'default';
+
+  const statusLabel = eventDetails.deletedAt
+    ? 'Deleted'
+    : eventDetails.status === 'DRAFT'
+    ? 'Draft'
+    : eventDetails.status === 'LIVE'
+    ? 'Live'
+    : eventDetails.status === 'SCHEDULED'
+    ? 'Scheduled'
+    : eventDetails.status === 'ENDED'
+    ? 'Ended'
+    : eventDetails.status === 'CANCELLED'
+    ? 'Cancelled'
+    : eventDetails.status;
 
   return (
     <div className="space-y-6">
+      <Button variant="outline" size="sm" onClick={() => router.push('/events')}>
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Events
+      </Button>
+
       {/* Event Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4 flex-1">
@@ -122,12 +144,7 @@ export default function EventDetailsPage() {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold text-gray-900">{eventDetails.title}</h1>
-              <Badge variant={statusBadgeVariant}>
-                {eventDetails.status === 'LIVE' && '• Live'}
-                {eventDetails.status === 'SCHEDULED' && '• Scheduled'}
-                {eventDetails.status === 'ENDED' && '• Ended'}
-                {eventDetails.status === 'CANCELLED' && '• Cancelled'}
-              </Badge>
+              <Badge variant={statusBadgeVariant}>• {statusLabel}</Badge>
             </div>
           <div className="flex items-center gap-6 text-gray-600">
             <div className="flex items-center gap-2">
@@ -152,7 +169,7 @@ export default function EventDetailsPage() {
             <Download className="h-4 w-4 mr-2" />
             Download Report
           </Button>
-          <Button variant="danger" onClick={handleSuspend} disabled={suspendMutation.isPending}>
+          <Button variant="danger" onClick={handleSuspend} disabled={suspendMutation.isPending || !!eventDetails.deletedAt}>
             <Ban className="h-4 w-4 mr-2" />
             Suspend Event
           </Button>
@@ -160,7 +177,7 @@ export default function EventDetailsPage() {
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -180,27 +197,20 @@ export default function EventDetailsPage() {
               <Users className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-600">Total Sprayers</p>
+              <p className="text-sm text-gray-600">Unique Sprayers</p>
               <p className="text-2xl font-bold text-gray-900">
                 {eventDetails.uniqueSprayerCount || 0}
               </p>
             </div>
           </div>
         </Card>
-        <Card>
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Mic className="h-6 w-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Active Performers</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {eventDetails.participants?.filter((p) => p.status === 'Active').length || 0}
-              </p>
-            </div>
-          </div>
-        </Card>
       </div>
+
+      {eventDetails.deletedAt && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          This event was deleted on {formatDate(eventDetails.deletedAt)} and is read-only.
+        </div>
+      )}
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -321,7 +331,7 @@ export default function EventDetailsPage() {
           <Card title="Top Sprayers">
             <div className="space-y-4">
               <Toggle
-                label="Show Anon"
+                label="Show anonymous"
                 checked={showAnonymous}
                 onChange={(e) => setShowAnonymous(e.target.checked)}
               />
@@ -329,7 +339,16 @@ export default function EventDetailsPage() {
                 {topSprayers?.leaderboard?.length === 0 ? (
                   <p className="text-center text-gray-500 py-4">No sprayers yet</p>
                 ) : (
-                  topSprayers?.leaderboard?.map((sprayer: TopSprayer, index: number) => (
+                  topSprayers?.leaderboard?.map((sprayer: TopSprayer, index: number) => {
+                    const displayName =
+                      sprayer.user?.username ||
+                      sprayer.user?.email ||
+                      (sprayer as { username?: string; email?: string }).username ||
+                      (sprayer as { username?: string; email?: string }).email ||
+                      'Anonymous User';
+                    const isAnonymous = !sprayer.user && !showAnonymous;
+
+                    return (
                     <div
                       key={sprayer.userId || index}
                       className={`flex items-center justify-between p-3 rounded-lg ${
@@ -339,12 +358,12 @@ export default function EventDetailsPage() {
                       <div className="flex items-center gap-3">
                         <span className="text-lg font-bold text-gray-700">{sprayer.rank || index + 1}.</span>
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
-                          {sprayer.user?.username?.charAt(0)?.toUpperCase() || sprayer.user?.email?.charAt(0)?.toUpperCase() || 'A'}
+                          {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div>
                           <p className="font-medium text-sm text-gray-900">
-                            {sprayer.user?.username || sprayer.user?.email || 'Anonymous User'}
-                            {!sprayer.user && <span className="text-gray-500 ml-1">*</span>}
+                            {displayName}
+                            {isAnonymous && <span className="text-gray-500 ml-1">*</span>}
                           </p>
                         </div>
                       </div>
@@ -352,62 +371,48 @@ export default function EventDetailsPage() {
                         {formatCurrency(sprayer.totalAmount)}
                       </span>
                     </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
           </Card>
 
-          {/* Performers & Celebrant */}
-          <Card title="Performers & Celebrant">
+          {/* Host */}
+          <Card title="Host">
             <div className="space-y-3">
-              {!eventDetails.participants || eventDetails.participants.length === 0 ? (
-                <p className="text-center text-gray-500 py-4">No performers</p>
+              {!eventDetails.hostUser ? (
+                <p className="text-center text-gray-500 py-4">No host information</p>
               ) : (
-                eventDetails.participants.map((participant) => {
-                  const displayName = participant.name || participant.username || 'Unknown';
-                  const type = participant.type || 'T2 Verified';
-                  const status = participant.status || 'Offline';
-                  return (
-                    <div
-                      key={participant.id}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${
-                            type === 'Celebrant'
-                              ? 'bg-pink-500'
-                              : type === 'T2 Verified'
-                              ? 'bg-blue-500'
-                              : 'bg-purple-500'
-                          }`}
-                        >
-                          <Users className="h-5 w-5" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm text-gray-900">{displayName}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              variant={status === 'Active' ? 'success' : 'default'}
-                              className="text-xs"
-                            >
-                              {type}
-                            </Badge>
-                            <span
-                              className={`text-xs ${
-                                status === 'Active' ? 'text-green-600' : 'text-gray-500'
-                              }`}
-                            >
-                              • {status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      <ExternalLink className="h-4 w-4 text-gray-400" />
+                <div
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100"
+                  onClick={() => router.push(`/users?userId=${eventDetails.hostUser!.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      router.push(`/users?userId=${eventDetails.hostUser!.id}`);
+                    }
+                  }}
+                  role="link"
+                  tabIndex={0}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#0D2A68] flex items-center justify-center text-white">
+                      <Users className="h-5 w-5" />
                     </div>
-                  );
-                })
+                    <div>
+                      <p className="font-medium text-sm text-gray-900">
+                        {[eventDetails.hostUser.firstName, eventDetails.hostUser.lastName]
+                          .filter(Boolean)
+                          .join(' ') ||
+                          eventDetails.hostUser.username ||
+                          eventDetails.hostUser.email}
+                      </p>
+                      <p className="text-xs text-gray-500">{eventDetails.hostUser.email}</p>
+                      <p className="text-xs text-gray-400">ID: {eventDetails.hostUser.id}</p>
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-gray-400" />
+                </div>
               )}
             </div>
           </Card>

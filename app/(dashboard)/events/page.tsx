@@ -1,35 +1,72 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Play, Users, Filter, Download, X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Calendar, Play, Users, Filter, Download, X, Search } from 'lucide-react';
 import { NairaIcon } from '@/components/ui/NairaIcon';
 import { Card } from '@/components/ui/Card';
 import { MetricCard } from '@/components/features/dashboard/MetricCard';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatCurrency, formatDate } from '@/lib/utils/format';
 import { eventsApi } from '@/lib/api/events';
 import { EventFilterModal, type EventFilters } from '@/components/features/events/EventFilterModal';
 import type { Event } from '@/lib/types/api';
 
+function eventStatusVariant(
+  status: Event['status'],
+  deletedAt?: string | null,
+): 'success' | 'warning' | 'danger' | 'default' {
+  if (deletedAt) return 'danger';
+  if (status === 'LIVE') return 'success';
+  if (status === 'SCHEDULED' || status === 'DRAFT') return 'warning';
+  if (status === 'CANCELLED') return 'danger';
+  return 'default';
+}
+
+function getEventStatusLabel(event: Event): string {
+  if (event.deletedAt) return 'Deleted';
+  if (event.status === 'ENDED') return 'Ended';
+  if (event.status === 'DRAFT') return 'Draft';
+  if (event.status === 'SCHEDULED') return 'Scheduled';
+  if (event.status === 'LIVE') return 'Live';
+  if (event.status === 'CANCELLED') return 'Cancelled';
+  return event.status;
+}
+
 export default function EventsPage() {
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [filters, setFilters] = useState<EventFilters>({});
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const limit = 20;
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const { data: eventsData, isLoading } = useQuery({
-    queryKey: ['events', { page, limit, ...filters }],
+    queryKey: ['events', { page, limit, ...filters, search: debouncedSearch }],
     queryFn: () => {
-      const params: any = { page, limit };
-      if (filters.status) params.status = filters.status;
+      const params: Record<string, unknown> = { page, limit };
+      if (filters.status && filters.status !== 'DELETED') params.status = filters.status;
+      if (filters.status === 'DELETED' || filters.includeDeleted) params.includeDeleted = true;
+      if (filters.hostUserId) params.hostUserId = filters.hostUserId;
       if (filters.categories && filters.categories.length > 0) params.categories = filters.categories;
       if (filters.startDate) params.startDate = filters.startDate;
       if (filters.endDate) params.endDate = filters.endDate;
+      if (debouncedSearch) params.search = debouncedSearch;
       return eventsApi.getEvents(params);
     },
   });
@@ -42,38 +79,42 @@ export default function EventsPage() {
   const events: Event[] = eventsData?.events || [];
   const pagination = eventsData?.pagination;
 
-  // Check if any filters are currently applied
   const hasActiveFilters = useMemo(() => {
     return !!(
       filters.status ||
+      filters.includeDeleted ||
+      filters.hostUserId ||
       (filters.categories && filters.categories.length > 0) ||
       filters.startDate ||
-      filters.endDate
+      filters.endDate ||
+      debouncedSearch
     );
-  }, [filters]);
+  }, [filters, debouncedSearch]);
 
   const handleApplyFilters = (newFilters: EventFilters) => {
     setFilters(newFilters);
-    setPage(1); // Reset to first page when filters change
+    setPage(1);
   };
 
   const handleResetFilters = () => {
     setFilters({});
+    setSearchInput('');
     setPage(1);
   };
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const params: any = {};
-      if (filters.status) params.status = filters.status;
+      const params: Record<string, unknown> = {};
+      if (filters.status && filters.status !== 'DELETED') params.status = filters.status;
+      if (filters.status === 'DELETED' || filters.includeDeleted) params.includeDeleted = true;
+      if (filters.hostUserId) params.hostUserId = filters.hostUserId;
       if (filters.categories && filters.categories.length > 0) params.categories = filters.categories;
       if (filters.startDate) params.startDate = filters.startDate;
       if (filters.endDate) params.endDate = filters.endDate;
+      if (debouncedSearch) params.search = debouncedSearch;
 
       const blob = await eventsApi.exportEvents(params);
-      
-      // Create download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -109,30 +150,41 @@ export default function EventsPage() {
           <>
             <MetricCard title="Total Events" value={metrics.totalEvents} icon={Calendar} change={metrics.totalEventsGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Active Events" value={metrics.activeEvents} icon={Play} change={metrics.activeEventsGrowth} changeLabel="vs last 7 days" />
-            <MetricCard title="Total Attendees" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Unique Sprayers (All Events)" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed)} icon={NairaIcon} change={metrics.totalSprayedGrowth} changeLabel="vs last 7 days" />
           </>
         ) : null}
       </div>
 
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Recent Event Oversight</h2>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setIsFilterModalOpen(true)}>
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
-            {hasActiveFilters && (
-              <Button variant="outline" size="sm" onClick={handleResetFilters}>
-                <X className="h-4 w-4 mr-2" />
-                Clear Filters
+        <div className="flex flex-col gap-4 mb-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold">Recent Event Oversight</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setIsFilterModalOpen(true)}>
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
               </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={handleExport} isLoading={isExporting}>
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
+              {hasActiveFilters && (
+                <Button variant="outline" size="sm" onClick={handleResetFilters}>
+                  <X className="h-4 w-4 mr-2" />
+                  Clear Filters
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={handleExport} isLoading={isExporting}>
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search by title, code, or host..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </div>
 
@@ -142,7 +194,7 @@ export default function EventsPage() {
               <TableHeader>Event Name</TableHeader>
               <TableHeader>Date</TableHeader>
               <TableHeader>Revenue</TableHeader>
-              <TableHeader>Attendees</TableHeader>
+              <TableHeader>Unique Sprayers</TableHeader>
               <TableHeader>Status</TableHeader>
               <TableHeader>Actions</TableHeader>
             </TableRow>
@@ -186,22 +238,18 @@ export default function EventsPage() {
                   <TableCell>{formatCurrency(event.totalSprayed || '0')}</TableCell>
                   <TableCell>{event.uniqueSprayerCount || 0}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={
-                        event.status === 'LIVE'
-                          ? 'success'
-                          : event.status === 'SCHEDULED'
-                          ? 'warning'
-                          : 'default'
-                      }
-                    >
-                      {event.status}
+                    <Badge variant={eventStatusVariant(event.status, event.deletedAt)}>
+                      {getEventStatusLabel(event)}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <a href={`/events/${event.id}`} className="text-gray-400 hover:text-gray-600">
-                      ⋯
-                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/events/${event.id}`)}
+                    >
+                      View
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))
@@ -230,4 +278,3 @@ export default function EventsPage() {
     </div>
   );
 }
-

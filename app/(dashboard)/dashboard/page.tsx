@@ -64,7 +64,7 @@ export default function DashboardPage() {
     totalEvents: dashboardMetrics?.totalEvents ?? 0,
     totalEventsGrowth: dashboardMetrics?.totalEventsGrowth ?? 0,
     revenue: dashboardMetrics?.revenue
-      ? formatCurrencyAbbreviated(dashboardMetrics.revenue, true)
+      ? formatCurrencyAbbreviated(dashboardMetrics.revenue)
       : '₦0',
     revenueGrowth: dashboardMetrics?.revenueGrowth ?? 0,
     pendingKYC: dashboardMetrics?.pendingKyc ?? 0,

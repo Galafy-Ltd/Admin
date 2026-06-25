@@ -40,6 +40,27 @@ export const formatDateTime = (date: string | Date): string => {
   }
 };
 
+const WAT_TIMEZONE = 'Africa/Lagos';
+
+/** Format date/time in West Africa Time with explicit WAT label */
+export const formatDateTimeWAT = (date: string | Date): string => {
+  try {
+    const dateObj = typeof date === 'string' ? parseISO(date) : date;
+    const formatted = new Intl.DateTimeFormat('en-NG', {
+      timeZone: WAT_TIMEZONE,
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(dateObj);
+    return `${formatted} WAT`;
+  } catch {
+    return '';
+  }
+};
+
 export const formatRelativeTime = (date: string | Date): string => {
   try {
     const dateObj = typeof date === 'string' ? parseISO(date) : date;

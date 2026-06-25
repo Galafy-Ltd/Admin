@@ -10,10 +10,12 @@ import { cn } from '@/lib/utils/cn';
 import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 
 export interface EventFilters {
-  status?: 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED' | null;
+  status?: 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED' | 'DRAFT' | 'DELETED' | null;
   categories?: string[];
   startDate?: string;
   endDate?: string;
+  hostUserId?: string;
+  includeDeleted?: boolean;
 }
 
 interface EventFilterModalProps {
@@ -60,12 +62,17 @@ const EVENT_TYPES = [
   'Wedding',
 ];
 
-const STATUS_OPTIONS = [
+const STATUS_OPTIONS: Array<{
+  label: string;
+  value: EventFilters['status'];
+}> = [
   { label: 'All', value: null },
-  { label: 'Upcoming', value: 'SCHEDULED' as const },
-  { label: 'Live', value: 'LIVE' as const },
-  { label: 'Completed', value: 'ENDED' as const },
-  { label: 'Cancelled', value: 'CANCELLED' as const },
+  { label: 'Draft', value: 'DRAFT' },
+  { label: 'Upcoming', value: 'SCHEDULED' },
+  { label: 'Live', value: 'LIVE' },
+  { label: 'Ended', value: 'ENDED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
+  { label: 'Deleted', value: 'DELETED' },
 ];
 
 export function EventFilterModal({
@@ -79,7 +86,6 @@ export function EventFilterModal({
   const [startDateInput, setStartDateInput] = useState('');
   const [endDateInput, setEndDateInput] = useState('');
 
-  // Initialize local state when filters change
   useEffect(() => {
     setLocalFilters(filters);
     setStartDateInput(filters.startDate ? format(new Date(filters.startDate), 'yyyy-MM-dd') : '');
@@ -124,17 +130,18 @@ export function EventFilterModal({
     const newCategories = currentCategories.includes(category)
       ? currentCategories.filter((c) => c !== category)
       : [...currentCategories, category];
-    
+
     setLocalFilters({
       ...localFilters,
       categories: newCategories.length > 0 ? newCategories : undefined,
     });
   };
 
-  const handleStatusChange = (status: 'SCHEDULED' | 'LIVE' | 'ENDED' | 'CANCELLED' | null) => {
+  const handleStatusChange = (status: EventFilters['status']) => {
     setLocalFilters({
       ...localFilters,
       status: status || undefined,
+      includeDeleted: status === 'DELETED' ? true : undefined,
     });
   };
 
@@ -165,13 +172,25 @@ export function EventFilterModal({
     setStartDateInput('');
     setEndDateInput('');
     onResetFilters();
-    onClose();
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Filter Events" size="lg">
       <div className="space-y-6">
-        {/* Date Range */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Host User ID</label>
+          <Input
+            placeholder="Enter host user ID"
+            value={localFilters.hostUserId || ''}
+            onChange={(e) =>
+              setLocalFilters({
+                ...localFilters,
+                hostUserId: e.target.value.trim() || undefined,
+              })
+            }
+          />
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
           <div className="flex gap-3 mb-3">
@@ -187,59 +206,39 @@ export function EventFilterModal({
               onChange={(e) => handleDateChange('end', e.target.value)}
               className="flex-1"
             />
-            <button className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
+            <button type="button" className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50">
               <Calendar className="h-5 w-5 text-gray-500" />
             </button>
           </div>
           <div className="flex gap-2 flex-wrap border border-dashed border-blue-500 rounded-lg p-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickDate('today')}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => handleQuickDate('today')} className="text-xs">
               Today
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickDate('thisWeek')}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => handleQuickDate('thisWeek')} className="text-xs">
               This Week
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickDate('thisMonth')}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => handleQuickDate('thisMonth')} className="text-xs">
               This Month
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleQuickDate('last90Days')}
-              className="text-xs"
-            >
+            <Button variant="outline" size="sm" onClick={() => handleQuickDate('last90Days')} className="text-xs">
               Last 90 days
             </Button>
           </div>
         </div>
 
-        {/* Status Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
           <div className="flex gap-2 flex-wrap">
             {STATUS_OPTIONS.map((option) => (
               <button
                 key={option.label}
+                type="button"
                 onClick={() => handleStatusChange(option.value)}
                 className={cn(
                   'px-4 py-2 rounded-full text-sm font-medium transition-colors',
                   localFilters.status === option.value || (option.value === null && !localFilters.status)
                     ? 'bg-[#0D2A68] text-white'
-                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50',
                 )}
               >
                 {option.label}
@@ -248,10 +247,9 @@ export function EventFilterModal({
           </div>
         </div>
 
-        {/* Event Type Filter */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">Event Type</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-2 max-h-48 overflow-y-auto">
             {EVENT_TYPES.map((type) => (
               <Checkbox
                 key={type}
@@ -263,7 +261,6 @@ export function EventFilterModal({
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-3 pt-4 border-t border-gray-200">
           <Button variant="outline" onClick={handleReset} className="flex-1">
             Reset Filters
@@ -276,4 +273,3 @@ export function EventFilterModal({
     </Modal>
   );
 }
-

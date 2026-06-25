@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { loginSchema } from '@/lib/utils/validation';
@@ -17,12 +16,16 @@ import {
   AUTH_SESSION_NOTICE_EXPIRED,
 } from '@/lib/utils/auth';
 
+const MAIN_SITE_URL = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://galafy.com';
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
   const [loginError, setLoginError] = useState<string | null>(null);
-  const router = useRouter();
-  const { login } = useAuth();
+  const [twoFactorStep, setTwoFactorStep] = useState<{ tempToken: string; email: string } | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [isVerifying2FA, setIsVerifying2FA] = useState(false);
+  const { login, completeTwoFactorLogin } = useAuth();
   const {
     register,
     handleSubmit,
@@ -45,10 +48,29 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginRequest) => {
     setLoginError(null);
     try {
-      await login(data);
+      const result = await login(data);
+      if (result.requires2FA && result.tempToken) {
+        setTwoFactorStep({ tempToken: result.tempToken, email: data.email });
+      }
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       setLoginError(err?.response?.data?.message || 'Login failed. Please try again.');
+    }
+  };
+
+  const onVerifyTwoFactor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!twoFactorStep || twoFactorCode.length !== 6) return;
+
+    setLoginError(null);
+    setIsVerifying2FA(true);
+    try {
+      await completeTwoFactorLogin(twoFactorStep.tempToken, twoFactorCode);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      setLoginError(err?.response?.data?.message || 'Invalid authentication code. Please try again.');
+    } finally {
+      setIsVerifying2FA(false);
     }
   };
 
@@ -58,60 +80,98 @@ export default function LoginPage() {
         <div className="w-full max-w-md">
           <div className="mb-8">
             <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mb-4">
-             <img src="/icon.svg" alt="galafyicon" />
+              <img src="/icon.svg" alt="galafyicon" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Login</h1>
-            <p className="text-gray-600">Sign in to manage and monitor your platform operations.</p>
+            <p className="text-gray-600">
+              {twoFactorStep
+                ? 'Enter the 6-digit code from your authenticator app.'
+                : 'Sign in to manage and monitor your platform operations.'}
+            </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {sessionNotice && <AuthAlert variant="warning" message={sessionNotice} />}
-            {loginError && <AuthAlert variant="error" message={loginError} />}
-            <div>
+          {twoFactorStep ? (
+            <form onSubmit={onVerifyTwoFactor} className="space-y-6">
+              {loginError && <AuthAlert variant="error" message={loginError} />}
+              <p className="text-sm text-gray-500">Signing in as {twoFactorStep.email}</p>
               <Input
-                label="Email Address"
-                type="email"
-                placeholder="admin@example.com"
-                error={errors.email?.message}
-                {...register('email')}
+                label="Authentication code"
+                placeholder="123456"
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                maxLength={6}
               />
-            </div>
-
-            <div>
-              <div className="relative">
+              <Button type="submit" className="w-full" isLoading={isVerifying2FA} disabled={twoFactorCode.length !== 6}>
+                Verify & Sign In
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  setTwoFactorStep(null);
+                  setTwoFactorCode('');
+                  setLoginError(null);
+                }}
+              >
+                Back to login
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              {sessionNotice && <AuthAlert variant="warning" message={sessionNotice} />}
+              {loginError && <AuthAlert variant="error" message={loginError} />}
+              <div>
                 <Input
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  error={errors.password?.message}
-                  {...register('password')}
+                  label="Email Address"
+                  type="email"
+                  placeholder="admin@example.com"
+                  error={errors.email?.message}
+                  {...register('email')}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
               </div>
-            </div>
 
-            <div className="flex items-center justify-end">
-              <Link href="/forgot-password" className="text-sm text-[#0D2A68] hover:text-[#0D2A68]/80">
-                Forgot Password?
-              </Link>
-            </div>
+              <div>
+                <div className="relative">
+                  <Input
+                    label="Password"
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Enter your password"
+                    error={errors.password?.message}
+                    {...register('password')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
 
-            <Button type="submit" className="w-full" isLoading={isSubmitting}>
-              Login
-            </Button>
+              <div className="flex items-center justify-end">
+                <Link href="/forgot-password" className="text-sm text-[#0D2A68] hover:text-[#0D2A68]/80">
+                  Forgot Password?
+                </Link>
+              </div>
 
-            <div className="text-center">
-              <Link href="/" className="text-sm text-gray-600 hover:text-gray-900">
-                Return to Main Site
-              </Link>
-            </div>
-          </form>
+              <Button type="submit" className="w-full" isLoading={isSubmitting}>
+                Login
+              </Button>
+
+              <div className="text-center">
+                <a
+                  href={MAIN_SITE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Return to Main Site
+                </a>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 
@@ -143,4 +203,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

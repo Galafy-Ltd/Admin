@@ -14,7 +14,12 @@ import { Pagination } from '@/components/ui/Pagination';
 import { Avatar } from '@/components/ui/Avatar';
 import { UserDetailsModal } from '@/components/features/users/UserDetailsModal';
 import { formatCurrency } from '@/lib/utils/format';
-import { formatTierLabel, getTierKycStatus } from '@/lib/utils/kyc';
+import {
+  formatTierLabel,
+  getKycStatusBadgeVariant,
+  getKycStatusLabel,
+  getTierKycStatus,
+} from '@/lib/utils/kyc';
 import { usersApi } from '@/lib/api/users';
 import type { User, KycTier } from '@/lib/types/api';
 
@@ -225,8 +230,8 @@ function UsersPageContent() {
                     </TableCell>
                     <TableCell>{formatCurrency(user.customer?.wallets?.[0]?.availableBalance || '0')}</TableCell>
                     <TableCell>
-                      <Badge variant={kycStatus === 'completed' ? 'success' : 'warning'}>
-                        {kycStatus === 'completed' ? 'Completed' : 'Pending'}
+                      <Badge variant={getKycStatusBadgeVariant(kycStatus)}>
+                        {getKycStatusLabel(kycStatus)}
                       </Badge>
                     </TableCell>
                   </TableRow>

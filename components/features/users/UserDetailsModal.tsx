@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/ui/Avatar';
 import { usersApi } from '@/lib/api/users';
-import { formatTierLabel, getTierProgress, getTierKycStatus, canApproveTier3, isPendingKyc } from '@/lib/utils/kyc';
+import { formatTierLabel, getTierProgress, getTierKycStatus, canApproveTier3, isPendingKyc, getCustomerTier, getKycStatusBadgeVariant, getKycStatusLabel } from '@/lib/utils/kyc';
 import { formatDate } from '@/lib/utils/format';
 
 interface UserDetailsModalProps {
@@ -135,8 +135,8 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
           </div>
 
           <div className="flex gap-2 mb-4 flex-wrap">
-            <Badge variant={kycStatus === 'completed' ? 'success' : 'warning'}>
-              KYC {kycStatus === 'completed' ? 'Completed' : 'Pending'}
+            <Badge variant={getKycStatusBadgeVariant(kycStatus)}>
+              KYC {getKycStatusLabel(kycStatus)}
             </Badge>
             <Badge variant="default">{formatTierLabel(user.customer?.tier)}</Badge>
             {isRestricted && <Badge variant="danger">AML Restricted</Badge>}
@@ -155,7 +155,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             </div>
           )}
 
-          {isPendingKyc(user.customer) && (
+          {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && (
             <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-sm text-yellow-800">
                 This user has incomplete KYC verification for one or more tiers.
@@ -225,15 +225,17 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
           )}
 
           <div className="mb-6 space-y-3">
-            <Button
-              onClick={() => reminderMutation.mutate()}
-              className="w-full"
-              variant="primary"
-              isLoading={reminderMutation.isPending}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Send KYC Reminder
-            </Button>
+            {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && (
+              <Button
+                onClick={() => reminderMutation.mutate()}
+                className="w-full"
+                variant="primary"
+                isLoading={reminderMutation.isPending}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Send KYC Reminder
+              </Button>
+            )}
 
             {isRestricted ? (
               <Button

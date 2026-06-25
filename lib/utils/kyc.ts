@@ -1,13 +1,13 @@
 import type { Customer } from '@/lib/types/api';
 
-export type KycTierStatus = 'pending' | 'completed';
+export type KycTierStatus = 'na' | 'pending' | 'completed';
 export type KycTier = 'Tier_0' | 'Tier_1' | 'Tier_2' | 'Tier_3';
 
 export interface TierProgressItem {
   tier: 1 | 2 | 3;
   label: string;
   description: string;
-  status: KycTierStatus;
+  status: 'pending' | 'completed';
 }
 
 export function formatTierLabel(tier?: string | null): string {
@@ -37,50 +37,46 @@ function isTier3Complete(customer: Customer): boolean {
   return customer.tier3UpgradeStatus === 'COMPLETED';
 }
 
-export function getTier1Status(customer?: Customer | null): KycTierStatus {
+export function getTier1Status(customer?: Customer | null): 'pending' | 'completed' {
   if (!customer) return 'pending';
   return isTier1Complete(customer) ? 'completed' : 'pending';
 }
 
-export function getTier2Status(customer?: Customer | null): KycTierStatus {
+export function getTier2Status(customer?: Customer | null): 'pending' | 'completed' {
   if (!customer) return 'pending';
   if (!isTier1Complete(customer)) return 'pending';
   return isTier2Complete(customer) ? 'completed' : 'pending';
 }
 
-export function getTier3Status(customer?: Customer | null): KycTierStatus {
+export function getTier3Status(customer?: Customer | null): 'pending' | 'completed' {
   if (!customer) return 'pending';
   if (!isTier2Complete(customer)) return 'pending';
   return isTier3Complete(customer) ? 'completed' : 'pending';
 }
 
-/** Status for the user's current tier level */
+/** Status for the user's current tier level (list column). */
 export function getTierKycStatus(customer?: Customer | null): KycTierStatus {
   if (!customer) return 'pending';
 
   const tier = getCustomerTier(customer);
   switch (tier) {
     case 'Tier_0':
-      return 'pending';
+      return 'na';
     case 'Tier_1':
-      return getTier1Status(customer);
+      return isTier1Complete(customer) ? 'completed' : 'pending';
     case 'Tier_2':
-      return getTier2Status(customer);
+      return isTier2Complete(customer) ? 'completed' : 'pending';
     case 'Tier_3':
-      return getTier3Status(customer);
+      return isTier3Complete(customer) ? 'completed' : 'pending';
     default:
       return 'pending';
   }
 }
 
-/** True if any tier has a pending state */
+/** True when current tier KYC is pending (Tier_0 is never pending). */
 export function isPendingKyc(customer?: Customer | null): boolean {
   if (!customer) return true;
-  return (
-    getTier1Status(customer) === 'pending' ||
-    getTier2Status(customer) === 'pending' ||
-    getTier3Status(customer) === 'pending'
-  );
+  return getTierKycStatus(customer) === 'pending';
 }
 
 export function getTierProgress(customer?: Customer | null): TierProgressItem[] {
@@ -108,8 +104,17 @@ export function getTierProgress(customer?: Customer | null): TierProgressItem[] 
 
 export function canApproveTier3(customer?: Customer | null): boolean {
   if (!customer) return false;
-  return (
-    customer.tier === 'Tier_3' &&
-    customer.tier3UpgradeStatus === 'PENDING'
-  );
+  return customer.tier === 'Tier_3' && customer.tier3UpgradeStatus === 'PENDING';
+}
+
+export function getKycStatusLabel(status: KycTierStatus): string {
+  if (status === 'na') return 'N/A';
+  if (status === 'completed') return 'Completed';
+  return 'Pending';
+}
+
+export function getKycStatusBadgeVariant(status: KycTierStatus): 'success' | 'warning' | 'default' {
+  if (status === 'completed') return 'success';
+  if (status === 'pending') return 'warning';
+  return 'default';
 }

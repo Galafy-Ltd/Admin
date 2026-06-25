@@ -5,9 +5,11 @@ export interface LoginRequest {
 }
 
 export interface LoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  admin: Admin;
+  accessToken?: string;
+  refreshToken?: string;
+  admin?: Admin;
+  requires2FA?: boolean;
+  tempToken?: string;
 }
 
 export interface Admin {
@@ -16,6 +18,18 @@ export interface Admin {
   role: string;
   isActive: boolean;
   createdAt: string;
+  twoFactorEnabled?: boolean;
+  twoFactorEnabledAt?: string | null;
+}
+
+export interface TwoFactorSetupResponse {
+  otpauthUrl: string;
+  secret: string;
+}
+
+export interface TwoFactorStatusResponse {
+  twoFactorEnabled: boolean;
+  twoFactorEnabledAt?: string | null;
 }
 
 export interface RefreshTokenRequest {
@@ -191,7 +205,7 @@ export interface InviteAdminResponse {
   email: string;
   role: string;
   expiresAt: string;
-  token: string;
+  token?: string;
   message: string;
 }
 
@@ -230,9 +244,18 @@ export interface RolesResponse {
   roles: Role[];
 }
 
+export interface PendingAdminInvite {
+  id: string;
+  email: string;
+  role: string;
+  expiresAt: string;
+  createdAt: string;
+}
+
 export interface RoleDetails {
   role: string;
   admins: AdminDetails[];
+  pendingInvites?: PendingAdminInvite[];
   pagination: Pagination;
 }
 
@@ -276,6 +299,7 @@ export interface Event {
   sprayCount?: number;
   totalSprayed?: string;
   uniqueSprayerCount?: number;
+  deletedAt?: string | null;
   createdAt: string;
 }
 
@@ -423,6 +447,7 @@ export interface TransactionsResponse {
 export interface TransactionDetails extends Transaction {
   wallet?: {
     id: string;
+    virtualAccountNumber?: string | null;
     customer?: {
       user?: User;
     };
@@ -451,6 +476,12 @@ export interface Withdrawal {
   amount: string;
   fee?: string;
   status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'REJECTED' | 'REVERSED';
+  transaction?: {
+    id: string;
+    reference?: string;
+    status: 'PENDING' | 'PROCESSING' | 'SUCCESS' | 'FAILED' | 'REVERSED';
+    createdAt?: string;
+  };
   createdAt: string;
   requiresApproval?: boolean;
   approvalReason?: string | null;

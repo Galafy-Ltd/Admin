@@ -4,19 +4,23 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/auth';
-import apiClient from '@/lib/api/client';
-import type { Admin, LoginRequest } from '@/lib/types/api';
+import type { Admin, LoginRequest, LoginResponse } from '@/lib/types/api';
 import { getStoredTokens } from '@/lib/utils/auth';
 
 interface AuthContextType {
   admin: Admin | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (data: LoginRequest) => Promise<void>;
+  login: (data: LoginRequest) => Promise<LoginResponse>;
+  completeTwoFactorLogin: (tempToken: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function persistAdminSession(admin: Admin) {
+  localStorage.setItem('admin_data', JSON.stringify(admin));
+}
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
@@ -29,8 +33,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const tokens = getStoredTokens();
       if (!tokens.accessToken) return null;
 
-      // Try to get admin info from token or make a request
-      // For now, we'll store admin info in localStorage after login
       const storedAdmin = localStorage.getItem('admin_data');
       return storedAdmin ? JSON.parse(storedAdmin) : null;
     },
@@ -43,14 +45,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [adminData]);
 
+  const finishLogin = (data: LoginResponse) => {
+    if (!data.admin) return;
+    setAdmin(data.admin);
+    persistAdminSession(data.admin);
+    queryClient.setQueryData(['admin'], data.admin);
+    router.push('/dashboard');
+  };
+
   const loginMutation = useMutation({
     mutationFn: (data: LoginRequest) => authApi.login(data),
     onSuccess: (data) => {
-      setAdmin(data.admin);
-      localStorage.setItem('admin_data', JSON.stringify(data.admin));
-      queryClient.setQueryData(['admin'], data.admin);
-      router.push('/dashboard');
+      if (!data.requires2FA) {
+        finishLogin(data);
+      }
     },
+  });
+
+  const verifyTwoFactorMutation = useMutation({
+    mutationFn: ({ tempToken, code }: { tempToken: string; code: string }) =>
+      authApi.verifyTwoFactor(tempToken, code),
+    onSuccess: finishLogin,
   });
 
   const logoutMutation = useMutation({
@@ -62,8 +77,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
   });
 
-  const login = async (data: LoginRequest) => {
-    await loginMutation.mutateAsync(data);
+  const login = async (data: LoginRequest) => loginMutation.mutateAsync(data);
+
+  const completeTwoFactorLogin = async (tempToken: string, code: string) => {
+    await verifyTwoFactorMutation.mutateAsync({ tempToken, code });
   };
 
   const logout = async () => {
@@ -77,8 +94,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         admin,
         isAuthenticated,
-        isLoading: isLoading || loginMutation.isPending || logoutMutation.isPending,
+        isLoading:
+          isLoading ||
+          loginMutation.isPending ||
+          verifyTwoFactorMutation.isPending ||
+          logoutMutation.isPending,
         login,
+        completeTwoFactorLogin,
         logout,
       }}
     >
@@ -94,4 +116,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

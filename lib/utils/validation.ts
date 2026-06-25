@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 export const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().min(1, 'Email is required').email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().min(1, 'Email is required').email('Invalid email address'),
 });
 
 export const resetPasswordSchema = z.object({
@@ -37,8 +37,7 @@ export const acceptInviteSchema = z.object({
 });
 
 export const inviteUserSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().min(1, 'Email is required').email('Invalid email address'),
 });
 
 export const updateConfigSchema = z.object({

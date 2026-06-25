@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Search, Bell, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -10,6 +11,12 @@ import { usersApi } from '@/lib/api/users';
 import { SearchModal } from '@/components/features/users/SearchModal';
 
 export const Header = () => {
+  const pathname = usePathname();
+  const hideGlobalSearch =
+    pathname === '/transactions' ||
+    pathname?.startsWith('/transactions/') ||
+    pathname === '/withdrawals' ||
+    pathname?.startsWith('/withdrawals/');
   const { admin, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,6 +81,7 @@ export const Header = () => {
     <>
       <header className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
+          {!hideGlobalSearch ? (
           <div className="flex-1 max-w-xl">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -89,6 +97,9 @@ export const Header = () => {
               />
             </div>
           </div>
+          ) : (
+            <div className="flex-1" />
+          )}
           <div className="flex items-center gap-4">
             <Link href="/notifications" className="relative">
               <Bell className="h-6 w-6 text-gray-600" />

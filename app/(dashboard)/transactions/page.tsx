@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Wallet, ArrowDown, ArrowUp, X } from 'lucide-react';
@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/Select';
 import { Input } from '@/components/ui/Input';
 import { Pagination } from '@/components/ui/Pagination';
 import { Avatar } from '@/components/ui/Avatar';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatCurrency, formatDateTimeWAT } from '@/lib/utils/format';
 import { transactionsApi } from '@/lib/api/transactions';
 import { analyticsApi } from '@/lib/api/analytics';
 import type { Transaction, TransactionStatus, TransactionType, TransactionDirection } from '@/lib/types/api';
@@ -32,10 +32,19 @@ export default function TransactionsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [directionFilter, setDirectionFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const limit = 20;
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ['transactions', { page, limit, statusFilter, typeFilter, directionFilter, search }],
+    queryKey: ['transactions', { page, limit, statusFilter, typeFilter, directionFilter, search: debouncedSearch }],
     queryFn: () =>
       transactionsApi.getTransactions({
         page,
@@ -43,7 +52,7 @@ export default function TransactionsPage() {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         type: typeFilter !== 'all' ? typeFilter : undefined,
         direction: directionFilter !== 'all' ? directionFilter : undefined,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
       }),
   });
 
@@ -55,7 +64,7 @@ export default function TransactionsPage() {
   const transactions: Transaction[] = transactionsData?.transactions || [];
   const pagination = transactionsData?.pagination;
 
-  const hasFilters = statusFilter !== 'all' || typeFilter !== 'all' || directionFilter !== 'all' || !!search;
+  const hasFilters = statusFilter !== 'all' || typeFilter !== 'all' || directionFilter !== 'all' || !!debouncedSearch;
 
   return (
     <div className="space-y-6">
@@ -111,12 +120,9 @@ export default function TransactionsPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Input
-              placeholder="Search reference or user..."
+              placeholder="Search reference, narration, or user..."
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
             />
             <Select
@@ -168,7 +174,7 @@ export default function TransactionsPage() {
           <TableHead>
             <TableRow>
               <TableHeader>User</TableHeader>
-              <TableHeader>Date</TableHeader>
+              <TableHeader>Date & Time</TableHeader>
               <TableHeader>Type</TableHeader>
               <TableHeader>Amount</TableHeader>
               <TableHeader>Status</TableHeader>
@@ -210,7 +216,7 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>{formatDate(transaction.createdAt)}</TableCell>
+                  <TableCell>{formatDateTimeWAT(transaction.createdAt)}</TableCell>
                   <TableCell>
                     <Badge variant="default">
                       {transaction.type} / {transaction.direction}

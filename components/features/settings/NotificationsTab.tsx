@@ -1,137 +1,157 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card } from '@/components/ui/Card';
 import { Toggle } from '@/components/ui/Toggle';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { AuthAlert } from '@/components/ui/AuthAlert';
+import { configApi } from '@/lib/api/config';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/constants/permissions';
+
+const NOTIFICATION_CONFIG_KEY = 'ADMIN_NOTIFICATION_TYPES_ENABLED';
+
+const NOTIFICATION_TOGGLES = [
+  {
+    key: 'NEW_USER',
+    label: 'New User Registration',
+    description: 'Notify when a new user signs up.',
+  },
+  {
+    key: 'WITHDRAWAL',
+    label: 'Withdrawal Activity',
+    description: 'Notify when withdrawals are requested or updated.',
+  },
+  {
+    key: 'TIER_UPGRADE',
+    label: 'Tier Upgrade Submitted',
+    description: 'Notify when a user submits tier upgrade verification.',
+  },
+  {
+    key: 'INFLOW',
+    label: 'Wallet Inflow',
+    description: 'Notify when funds are received into a wallet.',
+  },
+  {
+    key: 'EVENT_DELETED',
+    label: 'Event Deleted',
+    description: 'Notify when an event is soft-deleted.',
+  },
+] as const;
+
+type NotificationTypeKey = (typeof NOTIFICATION_TOGGLES)[number]['key'];
+
+const DEFAULT_SETTINGS: Record<NotificationTypeKey, boolean> = {
+  NEW_USER: true,
+  WITHDRAWAL: true,
+  TIER_UPGRADE: true,
+  INFLOW: true,
+  EVENT_DELETED: true,
+};
+
+function parseSettings(value: string | undefined): Record<NotificationTypeKey, boolean> {
+  if (!value) return { ...DEFAULT_SETTINGS };
+  try {
+    const parsed = JSON.parse(value) as Partial<Record<NotificationTypeKey, boolean>>;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
 
 export const NotificationsTab = () => {
-  const [newUserRegistration, setNewUserRegistration] = useState(true);
-  const [largeTransaction, setLargeTransaction] = useState(true);
-  const [flaggedActivity, setFlaggedActivity] = useState(true);
-  const [newWithdrawal, setNewWithdrawal] = useState(true);
-  const [withdrawalCompleted, setWithdrawalCompleted] = useState(false);
-  const [disputeReversal, setDisputeReversal] = useState(true);
-  const [deliveryChannel, setDeliveryChannel] = useState('dashboard');
-  const [businessEmail, setBusinessEmail] = useState('admin@galapay.com');
-  const [supportPhone, setSupportPhone] = useState('');
+  const queryClient = useQueryClient();
+  const { admin } = useAuth();
+  const { hasPermission } = usePermissions({ role: admin?.role });
+  const canManage = hasPermission(PERMISSIONS.MANAGE_CONFIG);
+
+  const [settings, setSettings] = useState<Record<NotificationTypeKey, boolean>>(DEFAULT_SETTINGS);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['config', NOTIFICATION_CONFIG_KEY],
+    queryFn: () => configApi.getConfigByKey(NOTIFICATION_CONFIG_KEY),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (config?.value) {
+      setSettings(parseSettings(config.value));
+    }
+  }, [config?.value]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const value = JSON.stringify(settings);
+      if (config) {
+        return configApi.updateConfig(NOTIFICATION_CONFIG_KEY, { value });
+      }
+      return configApi.createConfig({
+        key: NOTIFICATION_CONFIG_KEY,
+        category: 'NOTIFICATIONS',
+        value,
+        type: 'JSON',
+        description: 'Enabled admin dashboard notification types',
+      });
+    },
+    onSuccess: async () => {
+      setMessage({ type: 'success', text: 'Notification settings saved.' });
+      await queryClient.invalidateQueries({ queryKey: ['config', NOTIFICATION_CONFIG_KEY] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to save notification settings.' });
+    },
+  });
+
+  const handleToggle = (key: NotificationTypeKey, checked: boolean) => {
+    setSettings((prev) => ({ ...prev, [key]: checked }));
+    setMessage(null);
+  };
+
+  if (isLoading) {
+    return <p className="text-gray-500">Loading notification settings...</p>;
+  }
 
   return (
     <div className="space-y-6">
-      <Card title="System Alerts">
-        <p className="text-sm text-gray-600 mb-4">Notifications triggered by platform-wide activities.</p>
-        <div className="space-y-4">
-          <Toggle
-            label="New User Registration"
-            description="Notify when a new user signs up and completes KYC."
-            checked={newUserRegistration}
-            onChange={(e) => setNewUserRegistration(e.target.checked)}
-          />
-          <Toggle
-            label="Large Transaction Detected"
-            description="Alerts for transactions above internal threshold."
-            checked={largeTransaction}
-            onChange={(e) => setLargeTransaction(e.target.checked)}
-          />
-          <Toggle
-            label="Flagged Account Activity"
-            description="Notify compliance team when suspicious actions occur."
-            checked={flaggedActivity}
-            onChange={(e) => setFlaggedActivity(e.target.checked)}
-          />
-        </div>
-      </Card>
+      {message && <AuthAlert variant={message.type === 'success' ? 'success' : 'error'} message={message.text} />}
 
-      <Card title="Transactions & Withdrawals">
+      <Card title="Dashboard Alerts">
+        <p className="text-sm text-gray-600 mb-4">
+          Choose which platform events create notifications in the admin dashboard.
+        </p>
         <div className="space-y-4">
-          <Toggle
-            label="New Withdrawal Request"
-            description="Send notification when a user requests withdrawal."
-            checked={newWithdrawal}
-            onChange={(e) => setNewWithdrawal(e.target.checked)}
-          />
-          <Toggle
-            label="Withdrawal Completed"
-            description="Notify user and admin when payout is successfully processed."
-            checked={withdrawalCompleted}
-            onChange={(e) => setWithdrawalCompleted(e.target.checked)}
-          />
-          <Toggle
-            label="Dispute or Reversal"
-            description="Alerts for any transaction under review."
-            checked={disputeReversal}
-            onChange={(e) => setDisputeReversal(e.target.checked)}
-          />
-        </div>
-      </Card>
-
-      <Card title="Where should we send notifications?">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="delivery"
-                value="dashboard"
-                checked={deliveryChannel === 'dashboard'}
-                onChange={(e) => setDeliveryChannel(e.target.value)}
-                className="text-blue-600"
-              />
-              <span>In-Dashboard Only</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="delivery"
-                value="email-dashboard"
-                checked={deliveryChannel === 'email-dashboard'}
-                onChange={(e) => setDeliveryChannel(e.target.value)}
-                className="text-blue-600"
-              />
-              <span>Email & In-Dashboard</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="delivery"
-                value="sms-email-dashboard"
-                checked={deliveryChannel === 'sms-email-dashboard'}
-                onChange={(e) => setDeliveryChannel(e.target.value)}
-                className="text-blue-600"
-              />
-              <span>SMS + Email + In-Dashboard</span>
-            </label>
-            <p className="text-sm text-gray-500 ml-6">SMS charges may apply.</p>
-          </div>
-
-          <div>
-            <Input
-              label="Business Email"
-              type="email"
-              placeholder="admin@galapay.com"
-              value={businessEmail}
-              onChange={(e) => setBusinessEmail(e.target.value)}
+          {NOTIFICATION_TOGGLES.map((toggle) => (
+            <Toggle
+              key={toggle.key}
+              label={toggle.label}
+              description={toggle.description}
+              checked={settings[toggle.key]}
+              onChange={(e) => handleToggle(toggle.key, e.target.checked)}
+              disabled={!canManage}
             />
-          </div>
-
-          <div>
-            <Input
-              label="Support Phone (Optional)"
-              type="tel"
-              placeholder="+234 xxx xxx xxxx"
-              value={supportPhone}
-              onChange={(e) => setSupportPhone(e.target.value)}
-            />
-          </div>
+          ))}
         </div>
       </Card>
 
-      <div className="flex justify-end gap-4">
-        <Button variant="outline">Cancel</Button>
-        <Button>Save Notification Settings</Button>
-      </div>
+      <Card title="Delivery">
+        <p className="text-sm text-gray-600">
+          Notifications are delivered in the admin dashboard only.
+        </p>
+      </Card>
+
+      {canManage ? (
+        <div className="flex justify-end">
+          <Button onClick={() => saveMutation.mutate()} isLoading={saveMutation.isPending}>
+            Save Notification Settings
+          </Button>
+        </div>
+      ) : (
+        <p className="text-sm text-gray-500">You have read-only access to notification settings.</p>
+      )}
     </div>
   );
 };
-

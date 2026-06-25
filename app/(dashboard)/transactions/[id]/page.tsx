@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Download } from 'lucide-react';
@@ -7,8 +8,14 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
+import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { transactionsApi } from '@/lib/api/transactions';
-import { formatCurrency, formatDateTime } from '@/lib/utils/format';
+import { walletsApi } from '@/lib/api/wallets';
+import { formatCurrency, formatDateTimeWAT } from '@/lib/utils/format';
+
+function toDateInputValue(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
 
 export default function TransactionDetailPage() {
   const params = useParams();
@@ -21,12 +28,45 @@ export default function TransactionDetailPage() {
     enabled: !!id,
   });
 
+  const accountNumber = transaction?.wallet?.virtualAccountNumber || null;
+
+  const historyRange = useMemo(() => {
+    if (!transaction?.createdAt) return null;
+    const txDate = new Date(transaction.createdAt);
+    const fromDate = new Date(txDate);
+    fromDate.setDate(fromDate.getDate() - 30);
+    const toDate = new Date(txDate);
+    toDate.setDate(toDate.getDate() + 1);
+    return {
+      from: toDateInputValue(fromDate),
+      to: toDateInputValue(toDate),
+      keyWord: transaction.narration || transaction.reference,
+    };
+  }, [transaction]);
+
+  const { data: walletSnapshot, isLoading: isLoadingSnapshot } = useQuery({
+    queryKey: ['wallet-snapshot', accountNumber],
+    queryFn: () => walletsApi.getWalletByAccountNumber(accountNumber!),
+    enabled: !!accountNumber,
+  });
+
+  const { data: providerHistory, isLoading: isLoadingHistory } = useQuery({
+    queryKey: ['provider-history', accountNumber, historyRange],
+    queryFn: () =>
+      walletsApi.getProviderHistory(accountNumber!, {
+        from: historyRange!.from,
+        to: historyRange!.to,
+        keyWord: historyRange!.keyWord,
+      }),
+    enabled: !!accountNumber && !!historyRange,
+  });
+
   const handleDownloadReceipt = async () => {
-    const blob = await transactionsApi.downloadReceipt(id);
+    const { blob, filename } = await transactionsApi.downloadReceipt(id);
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `receipt-${id}.csv`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -50,6 +90,7 @@ export default function TransactionDetailPage() {
   }
 
   const user = transaction.user || transaction.wallet?.customer?.user;
+  const snapshot = walletSnapshot?.providerBalanceSnapshot;
 
   return (
     <div className="space-y-6">
@@ -93,15 +134,13 @@ export default function TransactionDetailPage() {
               </dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-gray-500">Date</dt>
-              <dd>{formatDateTime(transaction.createdAt)}</dd>
+              <dt className="text-gray-500">Date & Time</dt>
+              <dd>{formatDateTimeWAT(transaction.createdAt)}</dd>
             </div>
-            {transaction.narration && (
-              <div>
-                <dt className="text-gray-500 mb-1">Narration</dt>
-                <dd>{transaction.narration}</dd>
-              </div>
-            )}
+            <div>
+              <dt className="text-gray-500 mb-1">Narration</dt>
+              <dd>{transaction.narration || '—'}</dd>
+            </div>
             {transaction.externalReference && (
               <div className="flex justify-between">
                 <dt className="text-gray-500">External Ref</dt>
@@ -139,6 +178,80 @@ export default function TransactionDetailPage() {
           )}
         </Card>
       </div>
+
+      {accountNumber && (
+        <Card title="Reconciliation">
+          <div className="space-y-6">
+            {isLoadingSnapshot ? (
+              <p className="text-sm text-gray-500">Loading wallet snapshot...</p>
+            ) : snapshot ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-500">Account</p>
+                  <p className="font-medium">{snapshot.walletNumber}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Internal balance</p>
+                  <p className="font-medium">{formatCurrency(snapshot.internalAvailableBalance)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Provider balance</p>
+                  <p className="font-medium">
+                    {snapshot.availableBalance != null
+                      ? formatCurrency(snapshot.availableBalance)
+                      : 'Unavailable'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Sync status</p>
+                  <Badge variant={snapshot.inSync ? 'success' : snapshot.inSync === false ? 'danger' : 'default'}>
+                    {snapshot.inSync ? 'In sync' : snapshot.inSync === false ? 'Mismatch' : 'Unknown'}
+                  </Badge>
+                  {snapshot.discrepancy && (
+                    <p className="text-xs text-gray-500 mt-1">Delta: {formatCurrency(snapshot.discrepancy)}</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No provider snapshot available for this wallet.</p>
+            )}
+
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                Provider history (keyword: {historyRange?.keyWord || transaction.reference})
+              </h3>
+              {isLoadingHistory ? (
+                <p className="text-sm text-gray-500">Loading provider history...</p>
+              ) : providerHistory?.transactions?.length ? (
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableHeader>Date</TableHeader>
+                      <TableHeader>Narration</TableHeader>
+                      <TableHeader>Amount</TableHeader>
+                      <TableHeader>Status</TableHeader>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {providerHistory.transactions.map((item, index) => (
+                      <TableRow key={item.tranId || item.referenceId || index}>
+                        <TableCell>{item.date || item.transactionDate || '—'}</TableCell>
+                        <TableCell>{item.narration || item.title || '—'}</TableCell>
+                        <TableCell>
+                          {item.amount != null ? formatCurrency(item.amount) : '—'}
+                        </TableCell>
+                        <TableCell>{item.status || '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-sm text-gray-500">No matching provider transactions found.</p>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
