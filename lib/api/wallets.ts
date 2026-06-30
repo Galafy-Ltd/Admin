@@ -28,8 +28,16 @@ export interface ProviderTransactionHistoryItem {
   transactionDate?: string;
   narration?: string;
   status?: string;
+  creditType?: string;
+  sender?: string;
+  senderAccountNumber?: string;
+  destinationBank?: string;
+  destinationAccountNumber?: string;
+  recieverName?: string;
   referenceId?: string;
   tranId?: string;
+  rrn?: string;
+  balance?: string;
 }
 
 export interface ProviderHistoryResponse {

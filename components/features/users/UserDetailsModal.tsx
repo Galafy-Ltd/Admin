@@ -1,14 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Send, Ban, CheckCircle, ShieldOff } from 'lucide-react';
+import Link from 'next/link';
+import { X, Send, Ban, CheckCircle, ShieldOff, RotateCcw, ExternalLink } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Avatar } from '@/components/ui/Avatar';
+import { Modal } from '@/components/ui/Modal';
 import { usersApi } from '@/lib/api/users';
-import { formatTierLabel, getTierProgress, getTierKycStatus, canApproveTier3, isPendingKyc, getCustomerTier, getKycStatusBadgeVariant, getKycStatusLabel } from '@/lib/utils/kyc';
+import {
+  getTierProgress,
+  getTierKycStatus,
+  canApproveTier3,
+  canReverseTier3,
+  isPendingKyc,
+  getCustomerTier,
+  getKycStatusBadgeVariant,
+  getKycStatusLabel,
+  getTierDisplayLabel,
+  getAccountStatus,
+  shouldShowTierLimitBanner,
+  canOpenReconciliation,
+} from '@/lib/utils/kyc';
 import { formatDate } from '@/lib/utils/format';
 
 interface UserDetailsModalProps {
@@ -20,6 +35,8 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const queryClient = useQueryClient();
   const [restrictReason, setRestrictReason] = useState('');
   const [showRestrictForm, setShowRestrictForm] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showReverseModal, setShowReverseModal] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: user, isLoading } = useQuery({
@@ -75,6 +92,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
     mutationFn: () => usersApi.approveTier3(user!.customer!.id),
     onSuccess: () => {
       setActionMessage({ type: 'success', text: 'Tier 3 approved successfully.' });
+      setShowApproveModal(false);
       queryClient.invalidateQueries({ queryKey: ['user', userId] });
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -82,6 +100,22 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
       setActionMessage({
         type: 'error',
         text: err?.response?.data?.message || 'Failed to approve Tier 3.',
+      });
+    },
+  });
+
+  const reverseTier3Mutation = useMutation({
+    mutationFn: () => usersApi.reverseTier3(user!.customer!.id),
+    onSuccess: () => {
+      setActionMessage({ type: 'success', text: 'Tier 3 approval reversed.' });
+      setShowReverseModal(false);
+      queryClient.invalidateQueries({ queryKey: ['user', userId] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      setActionMessage({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to reverse Tier 3.',
       });
     },
   });
@@ -105,7 +139,11 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const tierProgress = getTierProgress(user.customer);
   const kycStatus = getTierKycStatus(user.customer);
   const showApproveTier3 = canApproveTier3(user.customer);
+  const showReverseTier3 = canReverseTier3(user.customer);
   const isRestricted = user.customer?.isAmlRestricted;
+  const accountStatus = getAccountStatus(user.customer);
+  const showLimitBanner = shouldShowTierLimitBanner(user.customer);
+  const showReconciliation = canOpenReconciliation(user.customer);
 
   return (
     <>
@@ -134,12 +172,26 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             </button>
           </div>
 
-          <div className="flex gap-2 mb-4 flex-wrap">
+          <div className="flex gap-2 mb-3 flex-wrap">
             <Badge variant={getKycStatusBadgeVariant(kycStatus)}>
-              KYC {getKycStatusLabel(kycStatus)}
+              {getKycStatusLabel(kycStatus)}
             </Badge>
-            <Badge variant="default">{formatTierLabel(user.customer?.tier)}</Badge>
+            <Badge variant="default">{getTierDisplayLabel(user.customer)}</Badge>
             {isRestricted && <Badge variant="danger">AML Restricted</Badge>}
+          </div>
+
+          <div className="mb-4">
+            <span
+              className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                accountStatus.variant === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : accountStatus.variant === 'warning'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-red-100 text-red-800'
+              }`}
+            >
+              Account Status — {accountStatus.label}
+            </span>
           </div>
 
           {actionMessage && (
@@ -155,7 +207,17 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             </div>
           )}
 
-          {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && (
+          {showLimitBanner && (
+            <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                {user.customer?.isBalanceRestricted && user.customer.balanceRestrictionReason
+                  ? user.customer.balanceRestrictionReason
+                  : 'This user is restricted to ₦300,000 balance and ₦100,000 daily limit.'}
+              </p>
+            </div>
+          )}
+
+          {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && !showLimitBanner && (
             <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
               <p className="text-sm text-yellow-800">
                 This user has incomplete KYC verification for one or more tiers.
@@ -210,21 +272,38 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             </div>
           </div>
 
-          {showApproveTier3 && (
-            <div className="mb-6">
+          <div className="mb-6 space-y-3">
+            {showApproveTier3 && (
               <Button
-                onClick={() => approveTier3Mutation.mutate()}
+                onClick={() => setShowApproveModal(true)}
                 className="w-full"
                 variant="primary"
-                isLoading={approveTier3Mutation.isPending}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Approve Tier 3 Upgrade
               </Button>
-            </div>
-          )}
+            )}
 
-          <div className="mb-6 space-y-3">
+            {showReverseTier3 && (
+              <Button
+                onClick={() => setShowReverseModal(true)}
+                className="w-full"
+                variant="primary"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reverse Tier 3 Approval
+              </Button>
+            )}
+
+            {showReconciliation && (
+              <Link href={`/users/${userId}/reconciliation`} className="block">
+                <Button className="w-full" variant="outline">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Reconciliation
+                </Button>
+              </Link>
+            )}
+
             {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && (
               <Button
                 onClick={() => reminderMutation.mutate()}
@@ -278,6 +357,38 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={showApproveModal}
+        onClose={() => setShowApproveModal(false)}
+        title="Approve Tier 3 Upgrade"
+        description="You're about to approve this user's Tier 3 verification. This will unlock full account access, including event hosting, unlimited wallet limits, and creator features."
+      >
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={() => setShowApproveModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => approveTier3Mutation.mutate()} isLoading={approveTier3Mutation.isPending}>
+            Approve Upgrade
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showReverseModal}
+        onClose={() => setShowReverseModal(false)}
+        title="Reverse Tier 3 Approval"
+        description="This will downgrade the user to Tier 2 and remove unlimited wallet benefits. Address verification status will not be changed."
+      >
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={() => setShowReverseModal(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => reverseTier3Mutation.mutate()} isLoading={reverseTier3Mutation.isPending}>
+            Reverse Approval
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 }

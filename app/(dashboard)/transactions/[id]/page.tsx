@@ -11,6 +11,13 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { transactionsApi } from '@/lib/api/transactions';
 import { walletsApi } from '@/lib/api/wallets';
+import { ReconciliationBalanceSummary } from '@/components/features/reconciliation/ReconciliationBalanceSummary';
+import {
+  formatProviderChannelType,
+  formatProviderDirectionLabel,
+  getProviderTransactionDirection,
+  getProviderTransactionType,
+} from '@/lib/utils/provider-transaction';
 import { formatCurrency, formatDateTimeWAT } from '@/lib/utils/format';
 
 function toDateInputValue(date: Date): string {
@@ -182,44 +189,16 @@ export default function TransactionDetailPage() {
       {accountNumber && (
         <Card title="Reconciliation">
           <div className="space-y-6">
-            {isLoadingSnapshot ? (
-              <p className="text-sm text-gray-500">Loading wallet snapshot...</p>
-            ) : snapshot ? (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-500">Account</p>
-                  <p className="font-medium">{snapshot.walletNumber}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Internal balance</p>
-                  <p className="font-medium">{formatCurrency(snapshot.internalAvailableBalance)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Provider balance</p>
-                  <p className="font-medium">
-                    {snapshot.availableBalance != null
-                      ? formatCurrency(snapshot.availableBalance)
-                      : 'Unavailable'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Sync status</p>
-                  <Badge variant={snapshot.inSync ? 'success' : snapshot.inSync === false ? 'danger' : 'default'}>
-                    {snapshot.inSync ? 'In sync' : snapshot.inSync === false ? 'Mismatch' : 'Unknown'}
-                  </Badge>
-                  {snapshot.discrepancy && (
-                    <p className="text-xs text-gray-500 mt-1">Delta: {formatCurrency(snapshot.discrepancy)}</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No provider snapshot available for this wallet.</p>
-            )}
+            <ReconciliationBalanceSummary snapshot={snapshot} isLoading={isLoadingSnapshot} />
 
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                Provider history (keyword: {historyRange?.keyWord || transaction.reference})
+              <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                Provider history (filtered by this transaction)
               </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Searches provider records from {historyRange?.from} to {historyRange?.to} using keyword:{' '}
+                <span className="font-mono">{historyRange?.keyWord || transaction.reference}</span>
+              </p>
               {isLoadingHistory ? (
                 <p className="text-sm text-gray-500">Loading provider history...</p>
               ) : providerHistory?.transactions?.length ? (
@@ -227,22 +206,40 @@ export default function TransactionDetailPage() {
                   <TableHead>
                     <TableRow>
                       <TableHeader>Date</TableHeader>
+                      <TableHeader>Type</TableHeader>
+                      <TableHeader>Direction</TableHeader>
+                      <TableHeader>Channel</TableHeader>
                       <TableHeader>Narration</TableHeader>
                       <TableHeader>Amount</TableHeader>
                       <TableHeader>Status</TableHeader>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {providerHistory.transactions.map((item, index) => (
-                      <TableRow key={item.tranId || item.referenceId || index}>
-                        <TableCell>{item.date || item.transactionDate || '—'}</TableCell>
-                        <TableCell>{item.narration || item.title || '—'}</TableCell>
-                        <TableCell>
-                          {item.amount != null ? formatCurrency(item.amount) : '—'}
-                        </TableCell>
-                        <TableCell>{item.status || '—'}</TableCell>
-                      </TableRow>
-                    ))}
+                    {providerHistory.transactions.map((item, index) => {
+                      const direction = getProviderTransactionDirection(item);
+                      const inferredType = getProviderTransactionType(item);
+                      return (
+                        <TableRow key={item.tranId || item.referenceId || index}>
+                          <TableCell>{item.date || item.transactionDate || '—'}</TableCell>
+                          <TableCell>{inferredType}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                direction === 'CREDIT' ? 'success' : direction === 'DEBIT' ? 'danger' : 'default'
+                              }
+                            >
+                              {formatProviderDirectionLabel(direction)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{formatProviderChannelType(item)}</TableCell>
+                          <TableCell>{item.narration || item.title || '—'}</TableCell>
+                          <TableCell>
+                            {item.amount != null ? formatCurrency(item.amount) : '—'}
+                          </TableCell>
+                          <TableCell>{item.status || '—'}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (

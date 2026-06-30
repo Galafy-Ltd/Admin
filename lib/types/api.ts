@@ -66,6 +66,8 @@ export interface Customer {
   isAmlRestricted: boolean;
   amlRestrictedAt?: string | null;
   amlRestrictionReason?: string | null;
+  isBalanceRestricted?: boolean;
+  balanceRestrictionReason?: string | null;
   tier1FaceStatus?: Tier1FaceStatus | null;
   tier1AccountStatus?: string | null;
   tier2UpgradeStatus?: TierUpgradeStatus | null;
@@ -78,6 +80,7 @@ export interface Wallet {
   id: string;
   balance?: string;
   availableBalance?: string;
+  virtualAccountNumber?: string | null;
   currency: string;
 }
 

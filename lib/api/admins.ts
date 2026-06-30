@@ -54,5 +54,10 @@ export const adminsApi = {
     const response = await apiClient.getClient().delete<AdminDetails>(`/admin/admins/${adminId}`);
     return response.data;
   },
+
+  async cancelInvite(inviteId: string): Promise<{ message: string }> {
+    const response = await apiClient.getClient().delete<{ message: string }>(`/admin/admins/invites/${inviteId}`);
+    return response.data;
+  },
 };
 

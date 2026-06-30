@@ -22,8 +22,8 @@ export const GeneralTab = () => {
           <div>
             <Select
               label="Withdrawal Processing Time"
-              options={[{ value: '24 hours', label: '24 hours' }]}
-              value="24 hours"
+              options={[{ value: 'Instant', label: 'Instant' }]}
+              value="Instant"
               disabled
             />
           </div>

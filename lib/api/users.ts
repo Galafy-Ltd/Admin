@@ -35,6 +35,13 @@ export const usersApi = {
     return response.data;
   },
 
+  async reverseTier3(customerId: string, notes?: string): Promise<unknown> {
+    const response = await apiClient.getClient().patch(`/admin/customers/${customerId}/reverse-tier-3`, {
+      notes,
+    });
+    return response.data;
+  },
+
   async restrictUser(userId: string, reason: string): Promise<User> {
     const response = await apiClient.getClient().post<User>(`/admin/users/${userId}/restrict`, { reason });
     return response.data;

@@ -105,6 +105,53 @@ export function canApproveTier3(customer?: Customer | null): boolean {
   return customer.tier === 'Tier_3' && customer.tier3UpgradeStatus === 'PENDING';
 }
 
+export function canReverseTier3(customer?: Customer | null): boolean {
+  if (!customer) return false;
+  return customer.tier === 'Tier_3' && customer.tier3UpgradeStatus === 'COMPLETED';
+}
+
+export function getTierDisplayLabel(customer?: Customer | null): string {
+  const tier = getCustomerTier(customer);
+  if (tier === 'Tier_3' && customer?.tier3UpgradeStatus === 'COMPLETED') {
+    return 'Tier 3 - Unlimited';
+  }
+  if (tier === 'Tier_2') return 'Tier 2 - Basic Access';
+  if (tier === 'Tier_1') return 'Tier 1 - Basic';
+  return formatTierLabel(tier);
+}
+
+export function getAccountStatus(customer?: Customer | null): {
+  label: string;
+  variant: 'success' | 'warning' | 'danger';
+} {
+  if (customer?.isAmlRestricted) {
+    return { label: 'Restricted', variant: 'danger' };
+  }
+  if (!customer || isPendingKyc(customer)) {
+    return { label: 'Pending', variant: 'warning' };
+  }
+  return { label: 'Active', variant: 'success' };
+}
+
+export function shouldShowTierLimitBanner(customer?: Customer | null): boolean {
+  if (!customer) return false;
+  const tier = getCustomerTier(customer);
+  if (customer.isBalanceRestricted) return true;
+  return (
+    (tier === 'Tier_2' || (tier === 'Tier_3' && customer.tier3UpgradeStatus !== 'COMPLETED')) &&
+    getTier2Status(customer) === 'completed'
+  );
+}
+
+export function getWalletAccountNumber(customer?: Customer | null): string | null {
+  const wallet = customer?.wallets?.find((w) => w.virtualAccountNumber);
+  return wallet?.virtualAccountNumber ?? null;
+}
+
+export function canOpenReconciliation(customer?: Customer | null): boolean {
+  return getTier1Status(customer) === 'completed' && !!getWalletAccountNumber(customer);
+}
+
 export function getKycStatusLabel(status: KycTierStatus): string {
   if (status === 'na') return 'N/A';
   if (status === 'completed') return 'Completed';

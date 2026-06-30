@@ -20,7 +20,12 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/constants/permissions';
 import { ADMIN_ROLE_PERMISSIONS, ROLE_DESCRIPTIONS } from '@/lib/constants/admin-role-permissions';
+import { RowActionsMenu } from '@/components/ui/RowActionsMenu';
+import { Select } from '@/components/ui/Select';
+import { ROLES } from '@/lib/constants/permissions';
 import type { AdminDetails, PendingAdminInvite } from '@/lib/types/api';
+
+const ALL_ROLES = Object.values(ROLES);
 
 export default function RoleDetailsPage() {
   const params = useParams();
@@ -28,6 +33,8 @@ export default function RoleDetailsPage() {
   const queryClient = useQueryClient();
   const roleName = params.roleName as string;
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [editRoleAdmin, setEditRoleAdmin] = useState<AdminDetails | null>(null);
+  const [selectedRole, setSelectedRole] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [devInviteLink, setDevInviteLink] = useState<string | null>(null);
 
@@ -49,6 +56,35 @@ export default function RoleDetailsPage() {
     reset,
   } = useForm<{ email: string }>({
     resolver: zodResolver(inviteUserSchema),
+  });
+
+  const cancelInviteMutation = useMutation({
+    mutationFn: (inviteId: string) => adminsApi.cancelInvite(inviteId),
+    onSuccess: async () => {
+      setMessage({ type: 'success', text: 'Invite cancelled.' });
+      await queryClient.invalidateQueries({ queryKey: ['roles', roleName] });
+      await queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to cancel invite.' });
+    },
+  });
+
+  const updateRoleMutation = useMutation({
+    mutationFn: ({ adminId, role }: { adminId: string; role: string }) =>
+      adminsApi.updateAdmin(adminId, { role }),
+    onSuccess: async (_data, variables) => {
+      setMessage({ type: 'success', text: 'Role updated successfully.' });
+      setEditRoleAdmin(null);
+      await queryClient.invalidateQueries({ queryKey: ['roles', roleName] });
+      await queryClient.invalidateQueries({ queryKey: ['roles', variables.role] });
+      await queryClient.invalidateQueries({ queryKey: ['roles'] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to update role.' });
+    },
   });
 
   const deactivateMutation = useMutation({
@@ -93,6 +129,24 @@ export default function RoleDetailsPage() {
       return;
     }
     deactivateMutation.mutate(admin.id);
+  };
+
+  const handleCancelInvite = (invite: PendingAdminInvite) => {
+    if (!window.confirm(`Cancel invite for ${invite.email}?`)) return;
+    cancelInviteMutation.mutate(invite.id);
+  };
+
+  const handleOpenEditRole = (admin: AdminDetails) => {
+    setSelectedRole(admin.role);
+    setEditRoleAdmin(admin);
+  };
+
+  const handleSaveRole = () => {
+    if (!editRoleAdmin || !selectedRole || selectedRole === editRoleAdmin.role) {
+      setEditRoleAdmin(null);
+      return;
+    }
+    updateRoleMutation.mutate({ adminId: editRoleAdmin.id, role: selectedRole });
   };
 
   if (!canViewAdmins) {
@@ -220,14 +274,21 @@ export default function RoleDetailsPage() {
                 </TableCell>
                 {canManageAdmins && (
                   <TableCell>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      onClick={() => handleRemove(admin)}
-                      disabled={admin.id === currentAdmin?.id || deactivateMutation.isPending}
-                    >
-                      Remove
-                    </Button>
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: 'Edit role',
+                          onClick: () => handleOpenEditRole(admin),
+                          disabled: admin.id === currentAdmin?.id,
+                        },
+                        {
+                          label: 'Remove',
+                          variant: 'danger',
+                          onClick: () => handleRemove(admin),
+                          disabled: admin.id === currentAdmin?.id || deactivateMutation.isPending,
+                        },
+                      ]}
+                    />
                   </TableCell>
                 )}
               </TableRow>
@@ -248,7 +309,20 @@ export default function RoleDetailsPage() {
                 <TableCell>
                   <Badge variant="warning">Pending</Badge>
                 </TableCell>
-                {canManageAdmins && <TableCell />}
+                {canManageAdmins && (
+                  <TableCell>
+                    <RowActionsMenu
+                      actions={[
+                        {
+                          label: 'Cancel invite',
+                          variant: 'danger',
+                          onClick: () => handleCancelInvite(invite),
+                          disabled: cancelInviteMutation.isPending,
+                        },
+                      ]}
+                    />
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
@@ -279,6 +353,37 @@ export default function RoleDetailsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!editRoleAdmin}
+        onClose={() => setEditRoleAdmin(null)}
+        title="Edit staff role"
+        description={editRoleAdmin ? `Change role for ${editRoleAdmin.email}` : undefined}
+      >
+        <div className="space-y-4">
+          <Select
+            label="Role"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            options={ALL_ROLES.map((role) => ({
+              value: role,
+              label: role.replace(/_/g, ' '),
+            }))}
+          />
+          <div className="flex justify-end gap-4 pt-2">
+            <Button type="button" variant="outline" onClick={() => setEditRoleAdmin(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveRole}
+              isLoading={updateRoleMutation.isPending}
+              disabled={!selectedRole || selectedRole === editRoleAdmin?.role}
+            >
+              Save
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
