@@ -16,7 +16,9 @@ export const Header = () => {
     pathname === '/transactions' ||
     pathname?.startsWith('/transactions/') ||
     pathname === '/withdrawals' ||
-    pathname?.startsWith('/withdrawals/');
+    pathname?.startsWith('/withdrawals/') ||
+    pathname === '/notifications' ||
+    pathname?.startsWith('/notifications/');
   const { admin, logout } = useAuth();
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,7 +116,7 @@ export const Header = () => {
                 onClick={() => setShowDropdown(!showDropdown)}
                 className="flex items-center gap-2"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
                   {admin?.email.charAt(0).toUpperCase() || 'A'}
                 </div>
                 <span className="text-sm font-medium text-gray-700">Admin</span>

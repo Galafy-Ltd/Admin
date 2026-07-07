@@ -150,7 +150,7 @@ export default function EventsPage() {
           <>
             <MetricCard title="Total Events" value={metrics.totalEvents} icon={Calendar} change={metrics.totalEventsGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Active Events" value={metrics.activeEvents} icon={Play} change={metrics.activeEventsGrowth} changeLabel="vs last 7 days" />
-            <MetricCard title="Unique Sprayers (All Events)" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
+            <MetricCard title="Total Attendees" value={metrics.totalAttendees} icon={Users} change={metrics.totalAttendeesGrowth} changeLabel="vs last 7 days" />
             <MetricCard title="Total Sprayed" value={formatCurrency(metrics.totalSprayed)} icon={NairaIcon} change={metrics.totalSprayedGrowth} changeLabel="vs last 7 days" />
           </>
         ) : null}
@@ -194,7 +194,7 @@ export default function EventsPage() {
               <TableHeader>Event Name</TableHeader>
               <TableHeader>Date</TableHeader>
               <TableHeader>Revenue</TableHeader>
-              <TableHeader>Unique Sprayers</TableHeader>
+              <TableHeader>Attendees</TableHeader>
               <TableHeader>Status</TableHeader>
               <TableHeader>Actions</TableHeader>
             </TableRow>
@@ -236,7 +236,7 @@ export default function EventsPage() {
                   </TableCell>
                   <TableCell>{formatDate(event.startsAt)}</TableCell>
                   <TableCell>{formatCurrency(event.totalSprayed || '0')}</TableCell>
-                  <TableCell>{event.uniqueSprayerCount || 0}</TableCell>
+                  <TableCell>{event.participantCount || 0}</TableCell>
                   <TableCell>
                     <Badge variant={eventStatusVariant(event.status, event.deletedAt)}>
                       {getEventStatusLabel(event)}

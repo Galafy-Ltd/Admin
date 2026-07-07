@@ -130,6 +130,7 @@ class ApiClient {
         // Do not treat credential / public auth failures as "session expired"
         const isPublicAuthPath =
           reqUrl.includes('/admin/auth/login') ||
+          reqUrl.includes('/admin/auth/verify-2fa') ||
           reqUrl.includes('/admin/auth/forgot-password') ||
           reqUrl.includes('/admin/auth/reset-password');
 

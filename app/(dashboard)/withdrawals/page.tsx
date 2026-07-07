@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { Pagination } from '@/components/ui/Pagination';
 import { Avatar } from '@/components/ui/Avatar';
-import { formatCurrency, formatDate } from '@/lib/utils/format';
+import { formatCurrency, formatDateTimeWAT } from '@/lib/utils/format';
 import { withdrawalsApi } from '@/lib/api/withdrawals';
 import type { Withdrawal } from '@/lib/types/api';
 
@@ -131,7 +131,7 @@ export default function WithdrawalsPage() {
                       '—'
                     )}
                   </TableCell>
-                  <TableCell>{formatDate(withdrawal.createdAt)}</TableCell>
+                  <TableCell>{formatDateTimeWAT(withdrawal.createdAt)}</TableCell>
                   <TableCell>
                     <Badge variant={withdrawalStatusVariant(withdrawal.status)}>{withdrawal.status}</Badge>
                   </TableCell>

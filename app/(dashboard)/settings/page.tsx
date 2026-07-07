@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { GeneralTab } from '@/components/features/settings/GeneralTab';
 import { RolesTab } from '@/components/features/settings/RolesTab';
 import { SecurityTab } from '@/components/features/settings/SecurityTab';
@@ -15,7 +15,23 @@ const tabs = [
 ];
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('general');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && tabs.some((item) => item.id === tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tabId);
+    router.replace(`/settings?${params.toString()}`);
+  };
 
   return (
     <div className="space-y-6">
@@ -29,7 +45,7 @@ export default function SettingsPage() {
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'

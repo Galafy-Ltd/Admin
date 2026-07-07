@@ -149,10 +149,14 @@ export default function RoleDetailsPage() {
     updateRoleMutation.mutate({ adminId: editRoleAdmin.id, role: selectedRole });
   };
 
+  const handleBackToRoles = () => {
+    router.push('/settings?tab=roles');
+  };
+
   if (!canViewAdmins) {
     return (
       <div className="space-y-6">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+        <button onClick={handleBackToRoles} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-5 w-5" />
           <span>Back</span>
         </button>
@@ -168,7 +172,7 @@ export default function RoleDetailsPage() {
   if (isError || !roleData) {
     return (
       <div className="space-y-6">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+        <button onClick={handleBackToRoles} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-5 w-5" />
           <span>Back</span>
         </button>
@@ -184,7 +188,7 @@ export default function RoleDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+      <button onClick={handleBackToRoles} className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
         <ArrowLeft className="h-5 w-5" />
         <span>Back</span>
       </button>

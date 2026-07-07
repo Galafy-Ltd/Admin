@@ -49,6 +49,13 @@ export default function LoginPage() {
     setLoginError(null);
     try {
       const result = await login(data);
+      if (result.requires2FAEnrollment) {
+        setLoginError(
+          result.message ||
+            'Two-factor authentication setup is required before signing in. Contact a super admin if needed.',
+        );
+        return;
+      }
       if (result.requires2FA && result.tempToken) {
         setTwoFactorStep({ tempToken: result.tempToken, email: data.email });
       }

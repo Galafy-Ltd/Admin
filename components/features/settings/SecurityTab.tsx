@@ -8,17 +8,33 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { AuthAlert } from '@/components/ui/AuthAlert';
 import { authApi } from '@/lib/api/auth';
+import { configApi } from '@/lib/api/config';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/constants/permissions';
 
 export const SecurityTab = () => {
+  const mandatory2FAKey = 'ADMIN_MANDATORY_2FA_ENABLED';
   const queryClient = useQueryClient();
+  const { admin } = useAuth();
+  const { hasPermission } = usePermissions({ role: admin?.role });
+  const canManageConfig = hasPermission(PERMISSIONS.MANAGE_CONFIG);
+  const isSuperAdmin = admin?.role === 'SUPER_ADMIN';
   const [setupData, setSetupData] = useState<{ otpauthUrl: string; secret: string } | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [disableCode, setDisableCode] = useState('');
+  const [mandatory2FAEnabled, setMandatory2FAEnabled] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data: twoFactorStatus, isLoading } = useQuery({
     queryKey: ['two-factor-status'],
     queryFn: () => authApi.getTwoFactorStatus(),
+  });
+
+  const { data: mandatory2FAConfig } = useQuery({
+    queryKey: ['config', mandatory2FAKey],
+    queryFn: () => configApi.getConfigByKey(mandatory2FAKey),
+    retry: false,
   });
 
   const setupMutation = useMutation({
@@ -60,6 +76,37 @@ export const SecurityTab = () => {
     },
   });
 
+  const mandatoryMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const value = String(enabled);
+      if (mandatory2FAConfig) {
+        return configApi.updateConfig(mandatory2FAKey, { value });
+      }
+      return configApi.createConfig({
+        key: mandatory2FAKey,
+        category: 'SECURITY',
+        value,
+        type: 'BOOLEAN',
+        description: 'Require all admin accounts to complete TOTP 2FA before signing in',
+      });
+    },
+    onSuccess: async (_data, enabled) => {
+      setMandatory2FAEnabled(enabled);
+      setMessage({
+        type: 'success',
+        text: enabled ? 'Mandatory 2FA enabled for all admins.' : 'Mandatory 2FA disabled.',
+      });
+      await queryClient.invalidateQueries({ queryKey: ['config', mandatory2FAKey] });
+    },
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } };
+      setMessage({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to update mandatory 2FA setting.',
+      });
+    },
+  });
+
   const twoFactorEnabled = twoFactorStatus?.twoFactorEnabled ?? false;
 
   useEffect(() => {
@@ -67,6 +114,11 @@ export const SecurityTab = () => {
       setSetupData(null);
     }
   }, [twoFactorEnabled]);
+
+  useEffect(() => {
+    if (!mandatory2FAConfig?.value) return;
+    setMandatory2FAEnabled(mandatory2FAConfig.value.trim().toLowerCase() === 'true');
+  }, [mandatory2FAConfig?.value]);
 
   const handleToggle = (checked: boolean) => {
     setMessage(null);
@@ -102,8 +154,28 @@ export const SecurityTab = () => {
             description="Require a 6-digit verification code from your security code generator when signing in."
             checked={twoFactorEnabled || !!setupData}
             onChange={(e) => handleToggle(e.target.checked)}
-            disabled={setupMutation.isPending || enableMutation.isPending || disableMutation.isPending}
+            disabled={
+              mandatory2FAEnabled || setupMutation.isPending || enableMutation.isPending || disableMutation.isPending
+            }
           />
+          {mandatory2FAEnabled && (
+            <p className="text-xs text-amber-700">
+              Mandatory 2FA is enabled. Personal 2FA cannot be disabled while this policy is active.
+            </p>
+          )}
+
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+            <Toggle
+              label="Mandatory 2FA for all admins"
+              description="When enabled, every admin account must complete 2FA setup before signing in."
+              checked={mandatory2FAEnabled}
+              onChange={(e) => mandatoryMutation.mutate(e.target.checked)}
+              disabled={!canManageConfig || !isSuperAdmin || mandatoryMutation.isPending}
+            />
+            {(!canManageConfig || !isSuperAdmin) && (
+              <p className="text-xs text-gray-500">Only super admins can change this policy.</p>
+            )}
+          </div>
 
           {setupData && !twoFactorEnabled && (
             <div className="rounded-lg border border-gray-200 p-4 space-y-4">

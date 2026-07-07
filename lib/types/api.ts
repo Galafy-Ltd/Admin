@@ -9,7 +9,9 @@ export interface LoginResponse {
   refreshToken?: string;
   admin?: Admin;
   requires2FA?: boolean;
+  requires2FAEnrollment?: boolean;
   tempToken?: string;
+  message?: string;
 }
 
 export interface Admin {
