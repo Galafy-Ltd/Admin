@@ -138,7 +138,7 @@ export default function EventDetailsPage() {
             <img
               src={eventDetails.imageUrl}
               alt={eventDetails.title}
-              className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+              className="w-20 h-20 rounded-lg object-cover shrink-0"
             />
           )}
           <div className="flex-1">
@@ -164,7 +164,7 @@ export default function EventDetailsPage() {
           </div>
           </div>
         </div>
-        <div className="flex gap-3 flex-shrink-0">
+        <div className="flex gap-3 shrink-0">
           <Button variant="primary" onClick={handleDownloadReport}>
             <Download className="h-4 w-4 mr-2" />
             Download Report
@@ -177,7 +177,7 @@ export default function EventDetailsPage() {
       </div>
 
       {/* Summary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -200,6 +200,19 @@ export default function EventDetailsPage() {
               <p className="text-sm text-gray-600">Unique Sprayers</p>
               <p className="text-2xl font-bold text-gray-900">
                 {eventDetails.uniqueSprayerCount || 0}
+              </p>
+            </div>
+          </div>
+        </Card>
+        <Card>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+              <Users className="h-6 w-6 text-indigo-600" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total Attendees</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {eventDetails.participantCount ?? eventDetails.participants?.length ?? 0}
               </p>
             </div>
           </div>
@@ -294,7 +307,7 @@ export default function EventDetailsPage() {
                       const username = spray.sprayerWallet?.customer?.user?.username || spray.sprayerWallet?.customer?.user?.email || 'Anonymous User';
                       return (
                         <div key={spray.id} className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg">
-                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                          <div className="w-10 h-10 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
                             {username.charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1">
@@ -357,7 +370,7 @@ export default function EventDetailsPage() {
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-lg font-bold text-gray-700">{sprayer.rank || index + 1}.</span>
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium">
                           {displayName.charAt(0).toUpperCase()}
                         </div>
                         <div>
