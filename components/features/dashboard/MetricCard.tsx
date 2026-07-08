@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { formatCurrency, formatPercentage } from '@/lib/utils/format';
 import { LucideIcon } from 'lucide-react';
@@ -10,6 +11,7 @@ interface MetricCardProps {
   change?: number;
   changeLabel?: string;
   attention?: boolean;
+  href?: string;
 }
 
 export const MetricCard: React.FC<MetricCardProps> = ({
@@ -19,12 +21,13 @@ export const MetricCard: React.FC<MetricCardProps> = ({
   change,
   changeLabel,
   attention,
+  href,
 }) => {
   const isCurrency = typeof value === 'string' && (value.includes('N') || value.includes('₦'));
   const displayValue = isCurrency ? value : typeof value === 'number' ? value.toLocaleString() : value;
 
-  return (
-    <Card>
+  const content = (
+    <Card className={href ? 'transition-shadow hover:shadow-md cursor-pointer' : undefined}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <p className="text-sm text-gray-600 mb-1">{title}</p>
@@ -44,5 +47,11 @@ export const MetricCard: React.FC<MetricCardProps> = ({
       </div>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href}>{content}</Link>;
+  }
+
+  return content;
 };
 

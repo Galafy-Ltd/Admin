@@ -106,6 +106,7 @@ export default function DashboardPage() {
           value={metrics.pendingKYC.toLocaleString()}
           icon={Clock}
           attention
+          href="/users?kycStatus=pending"
         />
       </div>
 

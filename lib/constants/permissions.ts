@@ -16,6 +16,7 @@ export const PERMISSIONS = {
   MANAGE_CONFIG: 'manage_config',
   MANAGE_ADMINS: 'manage_admins',
   VIEW_ADMINS: 'view_admins',
+  ADJUST_INTERNAL_BALANCES: 'adjust_internal_balances',
 } as const;
 
 export const ROLES = {

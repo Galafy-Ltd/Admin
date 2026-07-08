@@ -49,6 +49,25 @@ export interface ProviderHistoryResponse {
   count: number;
 }
 
+export type ManualBalanceAdjustmentDirection = 'CREDIT' | 'DEBIT';
+
+export interface ManualBalanceAdjustmentPayload {
+  direction: ManualBalanceAdjustmentDirection;
+  amount: string;
+  reference: string;
+  reason: string;
+}
+
+export interface ManualBalanceAdjustmentResponse {
+  success: boolean;
+  message: string;
+  walletId: string;
+  transactionId: string;
+  reference: string;
+  availableBalance: string;
+  ledgerBalance: string;
+}
+
 export const walletsApi = {
   async getWalletByAccountNumber(accountNumber: string): Promise<WalletByAccountResponse> {
     const response = await apiClient.getClient().get<WalletByAccountResponse>(
@@ -65,6 +84,16 @@ export const walletsApi = {
       `/admin/wallets/account/${encodeURIComponent(accountNumber)}/provider-history`,
       params,
     );
+    return response.data;
+  },
+
+  async adjustInternalBalance(
+    walletId: string,
+    payload: ManualBalanceAdjustmentPayload,
+  ): Promise<ManualBalanceAdjustmentResponse> {
+    const response = await apiClient
+      .getClient()
+      .post<ManualBalanceAdjustmentResponse>(`/admin/wallets/${walletId}/internal-adjustments`, payload);
     return response.data;
   },
 };

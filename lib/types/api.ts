@@ -44,6 +44,8 @@ export interface RefreshTokenResponse {
 }
 
 // User Types
+export type ReconciliationStatus = 'in_sync' | 'mismatch' | 'unavailable' | 'na';
+
 export interface User {
   id: string;
   email: string;
@@ -55,6 +57,7 @@ export interface User {
   profilePicture?: string;
   isVerified?: boolean;
   createdAt?: string;
+  reconciliationStatus?: ReconciliationStatus;
   customer?: Customer;
 }
 
@@ -76,6 +79,14 @@ export interface Customer {
   tier3UpgradeStatus?: TierUpgradeStatus | null;
   wallets?: Wallet[];
   withdrawalLimit?: WithdrawalLimit;
+}
+
+export interface PartnerAccountStatus {
+  accountNumber: string;
+  accountName?: string | null;
+  accountTier?: string | null;
+  accountStatus?: string | null;
+  restrictionStatus?: string | null;
 }
 
 export interface Wallet {

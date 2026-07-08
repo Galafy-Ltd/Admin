@@ -2,11 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Pagination } from '@/components/ui/Pagination';
 import { Badge } from '@/components/ui/Badge';
@@ -15,6 +16,9 @@ import { usersApi } from '@/lib/api/users';
 import { walletsApi } from '@/lib/api/wallets';
 import { transactionsApi } from '@/lib/api/transactions';
 import { canOpenReconciliation, getWalletAccountNumber } from '@/lib/utils/kyc';
+import { useAuth } from '@/lib/hooks/useAuth';
+import { usePermissions } from '@/lib/hooks/usePermissions';
+import { PERMISSIONS } from '@/lib/constants/permissions';
 import {
   formatProviderChannelType,
   formatProviderDirectionLabel,
@@ -37,10 +41,19 @@ function defaultDateRange() {
 export default function UserReconciliationPage() {
   const params = useParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { admin } = useAuth();
+  const { hasPermission } = usePermissions({ role: admin?.role });
   const userId = params.userId as string;
   const [page, setPage] = useState(1);
   const [dateRange, setDateRange] = useState(defaultDateRange);
+  const [adjustDirection, setAdjustDirection] = useState<'CREDIT' | 'DEBIT'>('CREDIT');
+  const [adjustAmount, setAdjustAmount] = useState('');
+  const [adjustReference, setAdjustReference] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustMessage, setAdjustMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const limit = 20;
+  const canAdjustBalances = hasPermission(PERMISSIONS.ADJUST_INTERNAL_BALANCES);
 
   const { data: user, isLoading: isLoadingUser } = useQuery({
     queryKey: ['user', userId],
@@ -49,7 +62,34 @@ export default function UserReconciliationPage() {
   });
 
   const accountNumber = getWalletAccountNumber(user?.customer);
+  const walletId = user?.customer?.wallets?.[0]?.id;
   const canReconcile = canOpenReconciliation(user?.customer);
+
+  const adjustMutation = useMutation({
+    mutationFn: () =>
+      walletsApi.adjustInternalBalance(walletId!, {
+        direction: adjustDirection,
+        amount: adjustAmount,
+        reference: adjustReference.trim(),
+        reason: adjustReason.trim(),
+      }),
+    onSuccess: () => {
+      setAdjustMessage({ type: 'success', text: 'Internal balance adjusted successfully.' });
+      setAdjustAmount('');
+      setAdjustReference('');
+      setAdjustReason('');
+      queryClient.invalidateQueries({ queryKey: ['wallet-snapshot', accountNumber] });
+      queryClient.invalidateQueries({ queryKey: ['user', userId] });
+      queryClient.invalidateQueries({ queryKey: ['user-reconciliation-internal', userId] });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: { response?: { data?: { message?: string } } }) => {
+      setAdjustMessage({
+        type: 'error',
+        text: err?.response?.data?.message || 'Failed to adjust internal balance.',
+      });
+    },
+  });
 
   const { data: walletSnapshot, isLoading: isLoadingSnapshot } = useQuery({
     queryKey: ['wallet-snapshot', accountNumber],
@@ -134,6 +174,67 @@ export default function UserReconciliationPage() {
           isLoading={isLoadingSnapshot}
         />
       </Card>
+
+      {canAdjustBalances && walletId && (
+        <Card title="Manual internal balance adjustment">
+          <p className="text-sm text-gray-500 mb-4">
+            Apply a controlled internal CREDIT or DEBIT for reconciliation correction. A unique reference and reason are required.
+          </p>
+          {adjustMessage && (
+            <div
+              className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+                adjustMessage.type === 'success'
+                  ? 'border-green-200 bg-green-50 text-green-800'
+                  : 'border-red-200 bg-red-50 text-red-800'
+              }`}
+              role="alert"
+            >
+              {adjustMessage.text}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Direction"
+              options={[
+                { value: 'CREDIT', label: 'Credit' },
+                { value: 'DEBIT', label: 'Debit' },
+              ]}
+              value={adjustDirection}
+              onChange={(e) => setAdjustDirection(e.target.value as 'CREDIT' | 'DEBIT')}
+            />
+            <Input
+              label="Amount"
+              type="number"
+              min="0.01"
+              step="0.01"
+              placeholder="0.00"
+              value={adjustAmount}
+              onChange={(e) => setAdjustAmount(e.target.value)}
+            />
+            <Input
+              label="Reference"
+              placeholder="Unique adjustment reference"
+              value={adjustReference}
+              onChange={(e) => setAdjustReference(e.target.value)}
+            />
+            <Input
+              label="Reason"
+              placeholder="Why this adjustment is needed"
+              value={adjustReason}
+              onChange={(e) => setAdjustReason(e.target.value)}
+            />
+          </div>
+          <div className="mt-4">
+            <Button
+              onClick={() => adjustMutation.mutate()}
+              isLoading={adjustMutation.isPending}
+              disabled={!adjustAmount || !adjustReference.trim() || !adjustReason.trim()}
+            >
+              Apply Adjustment
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Card title="Date range">
         <div className="flex flex-wrap gap-4 items-end">

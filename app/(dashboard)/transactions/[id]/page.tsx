@@ -1,28 +1,17 @@
 'use client';
 
-import { useMemo } from 'react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
-import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { transactionsApi } from '@/lib/api/transactions';
 import { walletsApi } from '@/lib/api/wallets';
 import { ReconciliationBalanceSummary } from '@/components/features/reconciliation/ReconciliationBalanceSummary';
-import {
-  formatProviderChannelType,
-  formatProviderDirectionLabel,
-  getProviderTransactionDirection,
-  getProviderTransactionType,
-} from '@/lib/utils/provider-transaction';
 import { formatCurrency, formatDateTimeWAT } from '@/lib/utils/format';
-
-function toDateInputValue(date: Date): string {
-  return date.toISOString().split('T')[0];
-}
 
 export default function TransactionDetailPage() {
   const params = useParams();
@@ -37,35 +26,10 @@ export default function TransactionDetailPage() {
 
   const accountNumber = transaction?.wallet?.virtualAccountNumber || null;
 
-  const historyRange = useMemo(() => {
-    if (!transaction?.createdAt) return null;
-    const txDate = new Date(transaction.createdAt);
-    const fromDate = new Date(txDate);
-    fromDate.setDate(fromDate.getDate() - 30);
-    const toDate = new Date(txDate);
-    toDate.setDate(toDate.getDate() + 1);
-    return {
-      from: toDateInputValue(fromDate),
-      to: toDateInputValue(toDate),
-      keyWord: transaction.narration || transaction.reference,
-    };
-  }, [transaction]);
-
   const { data: walletSnapshot, isLoading: isLoadingSnapshot } = useQuery({
     queryKey: ['wallet-snapshot', accountNumber],
     queryFn: () => walletsApi.getWalletByAccountNumber(accountNumber!),
     enabled: !!accountNumber,
-  });
-
-  const { data: providerHistory, isLoading: isLoadingHistory } = useQuery({
-    queryKey: ['provider-history', accountNumber, historyRange],
-    queryFn: () =>
-      walletsApi.getProviderHistory(accountNumber!, {
-        from: historyRange!.from,
-        to: historyRange!.to,
-        keyWord: historyRange!.keyWord,
-      }),
-    enabled: !!accountNumber && !!historyRange,
   });
 
   const handleDownloadReceipt = async () => {
@@ -160,18 +124,24 @@ export default function TransactionDetailPage() {
         <Card>
           <h2 className="text-lg font-semibold mb-4">User</h2>
           {user ? (
-            <div className="flex items-center gap-4">
-              <Avatar
-                src={user.profilePicture}
-                name={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
-                email={user.email}
-                size="lg"
-              />
-              <div>
-                <p className="font-medium">{user.username || user.email}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
+            <Link
+              href={`/users?userId=${user.id}`}
+              className="flex items-center justify-between gap-4 rounded-lg p-2 -m-2 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <Avatar
+                  src={user.profilePicture}
+                  name={`${user.firstName || ''} ${user.lastName || ''}`.trim()}
+                  email={user.email}
+                  size="lg"
+                />
+                <div>
+                  <p className="font-medium">{user.username || user.email}</p>
+                  <p className="text-sm text-gray-500">{user.email}</p>
+                </div>
               </div>
-            </div>
+              <ExternalLink className="h-4 w-4 text-gray-400 shrink-0" />
+            </Link>
           ) : (
             <p className="text-gray-500 text-sm">No user information</p>
           )}
@@ -188,65 +158,7 @@ export default function TransactionDetailPage() {
 
       {accountNumber && (
         <Card title="Reconciliation">
-          <div className="space-y-6">
-            <ReconciliationBalanceSummary snapshot={snapshot} isLoading={isLoadingSnapshot} />
-
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-1">
-                Provider history (filtered by this transaction)
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                Searches provider records from {historyRange?.from} to {historyRange?.to} using keyword:{' '}
-                <span className="font-mono">{historyRange?.keyWord || transaction.reference}</span>
-              </p>
-              {isLoadingHistory ? (
-                <p className="text-sm text-gray-500">Loading provider history...</p>
-              ) : providerHistory?.transactions?.length ? (
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableHeader>Date</TableHeader>
-                      <TableHeader>Type</TableHeader>
-                      <TableHeader>Direction</TableHeader>
-                      <TableHeader>Channel</TableHeader>
-                      <TableHeader>Narration</TableHeader>
-                      <TableHeader>Amount</TableHeader>
-                      <TableHeader>Status</TableHeader>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {providerHistory.transactions.map((item, index) => {
-                      const direction = getProviderTransactionDirection(item);
-                      const inferredType = getProviderTransactionType(item);
-                      return (
-                        <TableRow key={item.tranId || item.referenceId || index}>
-                          <TableCell>{item.date || item.transactionDate || '—'}</TableCell>
-                          <TableCell>{inferredType}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                direction === 'CREDIT' ? 'success' : direction === 'DEBIT' ? 'danger' : 'default'
-                              }
-                            >
-                              {formatProviderDirectionLabel(direction)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{formatProviderChannelType(item)}</TableCell>
-                          <TableCell>{item.narration || item.title || '—'}</TableCell>
-                          <TableCell>
-                            {item.amount != null ? formatCurrency(item.amount) : '—'}
-                          </TableCell>
-                          <TableCell>{item.status || '—'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              ) : (
-                <p className="text-sm text-gray-500">No matching provider transactions found.</p>
-              )}
-            </div>
-          </div>
+          <ReconciliationBalanceSummary snapshot={snapshot} isLoading={isLoadingSnapshot} />
         </Card>
       )}
     </div>

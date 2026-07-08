@@ -152,6 +152,27 @@ export function canOpenReconciliation(customer?: Customer | null): boolean {
   return getTier1Status(customer) === 'completed' && !!getWalletAccountNumber(customer);
 }
 
+/** True unless the user has completed Tier 3 KYC. */
+export function canSendKycReminder(customer?: Customer | null): boolean {
+  if (!customer) return false;
+  const tier = getCustomerTier(customer);
+  return !(tier === 'Tier_3' && isTier3Complete(customer));
+}
+
+export function getKycReminderButtonLabel(customer?: Customer | null): string {
+  if (!customer) return 'Send KYC Reminder';
+  const tier = getCustomerTier(customer);
+  if (tier === 'Tier_0') return 'Send KYC Reminder';
+  if (tier === 'Tier_1') {
+    return isTier1Complete(customer) ? 'Remind to Upgrade to Tier 2' : 'Send Tier 1 KYC Reminder';
+  }
+  if (tier === 'Tier_2') {
+    return isTier2Complete(customer) ? 'Remind to Upgrade to Tier 3' : 'Send Tier 2 KYC Reminder';
+  }
+  if (tier === 'Tier_3') return 'Send Tier 3 KYC Reminder';
+  return 'Send KYC Reminder';
+}
+
 export function getKycStatusLabel(status: KycTierStatus): string {
   if (status === 'na') return 'N/A';
   if (status === 'completed') return 'Completed';

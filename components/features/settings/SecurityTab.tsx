@@ -9,17 +9,10 @@ import { Input } from '@/components/ui/Input';
 import { AuthAlert } from '@/components/ui/AuthAlert';
 import { authApi } from '@/lib/api/auth';
 import { configApi } from '@/lib/api/config';
-import { useAuth } from '@/lib/hooks/useAuth';
-import { usePermissions } from '@/lib/hooks/usePermissions';
-import { PERMISSIONS } from '@/lib/constants/permissions';
 
 export const SecurityTab = () => {
   const mandatory2FAKey = 'ADMIN_MANDATORY_2FA_ENABLED';
   const queryClient = useQueryClient();
-  const { admin } = useAuth();
-  const { hasPermission } = usePermissions({ role: admin?.role });
-  const canManageConfig = hasPermission(PERMISSIONS.MANAGE_CONFIG);
-  const isSuperAdmin = admin?.role === 'SUPER_ADMIN';
   const [setupData, setSetupData] = useState<{ otpauthUrl: string; secret: string } | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [disableCode, setDisableCode] = useState('');
@@ -76,37 +69,6 @@ export const SecurityTab = () => {
     },
   });
 
-  const mandatoryMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const value = String(enabled);
-      if (mandatory2FAConfig) {
-        return configApi.updateConfig(mandatory2FAKey, { value });
-      }
-      return configApi.createConfig({
-        key: mandatory2FAKey,
-        category: 'SECURITY',
-        value,
-        type: 'BOOLEAN',
-        description: 'Require all admin accounts to complete TOTP 2FA before signing in',
-      });
-    },
-    onSuccess: async (_data, enabled) => {
-      setMandatory2FAEnabled(enabled);
-      setMessage({
-        type: 'success',
-        text: enabled ? 'Mandatory 2FA enabled for all admins.' : 'Mandatory 2FA disabled.',
-      });
-      await queryClient.invalidateQueries({ queryKey: ['config', mandatory2FAKey] });
-    },
-    onError: (error: unknown) => {
-      const err = error as { response?: { data?: { message?: string } } };
-      setMessage({
-        type: 'error',
-        text: err?.response?.data?.message || 'Failed to update mandatory 2FA setting.',
-      });
-    },
-  });
-
   const twoFactorEnabled = twoFactorStatus?.twoFactorEnabled ?? false;
 
   useEffect(() => {
@@ -124,14 +86,15 @@ export const SecurityTab = () => {
     setMessage(null);
     if (checked) {
       setupMutation.mutate();
-      return;
     }
+  };
 
-    if (!disableCode) {
+  const handleDisable2FA = () => {
+    setMessage(null);
+    if (disableCode.length !== 6) {
       setMessage({ type: 'error', text: 'Enter your 6-digit code to disable 2FA.' });
       return;
     }
-
     disableMutation.mutate(disableCode);
   };
 
@@ -155,7 +118,11 @@ export const SecurityTab = () => {
             checked={twoFactorEnabled || !!setupData}
             onChange={(e) => handleToggle(e.target.checked)}
             disabled={
-              mandatory2FAEnabled || setupMutation.isPending || enableMutation.isPending || disableMutation.isPending
+              twoFactorEnabled ||
+              mandatory2FAEnabled ||
+              setupMutation.isPending ||
+              enableMutation.isPending ||
+              disableMutation.isPending
             }
           />
           {mandatory2FAEnabled && (
@@ -163,19 +130,6 @@ export const SecurityTab = () => {
               Mandatory 2FA is enabled. Personal 2FA cannot be disabled while this policy is active.
             </p>
           )}
-
-          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-            <Toggle
-              label="Mandatory 2FA for all admins"
-              description="When enabled, every admin account must complete 2FA setup before signing in."
-              checked={mandatory2FAEnabled}
-              onChange={(e) => mandatoryMutation.mutate(e.target.checked)}
-              disabled={!canManageConfig || !isSuperAdmin || mandatoryMutation.isPending}
-            />
-            {(!canManageConfig || !isSuperAdmin) && (
-              <p className="text-xs text-gray-500">Only super admins can change this policy.</p>
-            )}
-          </div>
 
           {setupData && !twoFactorEnabled && (
             <div className="rounded-lg border border-gray-200 p-4 space-y-4">
@@ -207,18 +161,28 @@ export const SecurityTab = () => {
             </div>
           )}
 
-          {twoFactorEnabled && (
+          {twoFactorEnabled && !mandatory2FAEnabled && (
             <div className="rounded-lg border border-gray-200 p-4 space-y-3">
               <p className="text-sm text-gray-600">
-                To disable 2FA, enter a current code from your security code generator and turn the toggle off.
+                To disable 2FA, enter a current code from your security code generator and click Disable 2FA.
               </p>
-              <Input
-                label="Authentication code"
-                placeholder="123456"
-                value={disableCode}
-                onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                maxLength={6}
-              />
+              <div className="flex gap-2 items-end">
+                <Input
+                  label="Authentication code"
+                  placeholder="123456"
+                  value={disableCode}
+                  onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  maxLength={6}
+                />
+                <Button
+                  variant="danger"
+                  onClick={handleDisable2FA}
+                  isLoading={disableMutation.isPending}
+                  disabled={disableCode.length !== 6}
+                >
+                  Disable 2FA
+                </Button>
+              </div>
             </div>
           )}
         </div>

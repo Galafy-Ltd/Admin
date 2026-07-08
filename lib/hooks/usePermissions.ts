@@ -38,12 +38,14 @@ export const usePermissions = ({ role }: UsePermissionsProps) => {
         rolePermissions.add(PERMISSIONS.MANAGE_CONFIG);
         rolePermissions.add(PERMISSIONS.VIEW_FINANCIAL_REPORTS);
         rolePermissions.add(PERMISSIONS.VIEW_AUDIT_LOGS);
+        rolePermissions.add(PERMISSIONS.ADJUST_INTERNAL_BALANCES);
         break;
 
       case ROLES.FINANCE_ADMIN:
         rolePermissions.add(PERMISSIONS.VIEW_USERS);
         rolePermissions.add(PERMISSIONS.VIEW_FINANCIAL_REPORTS);
         rolePermissions.add(PERMISSIONS.VIEW_AUDIT_LOGS);
+        rolePermissions.add(PERMISSIONS.ADJUST_INTERNAL_BALANCES);
         break;
 
       case ROLES.SUPPORT:

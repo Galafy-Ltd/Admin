@@ -23,6 +23,8 @@ import {
   getAccountStatus,
   shouldShowTierLimitBanner,
   canOpenReconciliation,
+  canSendKycReminder,
+  getKycReminderButtonLabel,
 } from '@/lib/utils/kyc';
 import { formatDate } from '@/lib/utils/format';
 
@@ -43,6 +45,17 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
     queryKey: ['user', userId],
     queryFn: () => usersApi.getUserDetails(userId),
     enabled: !!userId,
+  });
+
+  const customerId = user?.customer?.id;
+  const {
+    data: providerStatus,
+    isLoading: isLoadingProviderStatus,
+    isError: hasProviderStatusError,
+  } = useQuery({
+    queryKey: ['partner-kyc-status', customerId],
+    queryFn: () => usersApi.getPartnerKycStatus(customerId!),
+    enabled: !!customerId,
   });
 
   const reminderMutation = useMutation({
@@ -140,7 +153,9 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const kycStatus = getTierKycStatus(user.customer);
   const showApproveTier3 = canApproveTier3(user.customer);
   const showReverseTier3 = canReverseTier3(user.customer);
-  const isRestricted = user.customer?.isAmlRestricted;
+  const isAmlRestricted = user.customer?.isAmlRestricted;
+  const isBalanceRestricted = user.customer?.isBalanceRestricted;
+  const isRestricted = isAmlRestricted || isBalanceRestricted;
   const accountStatus = getAccountStatus(user.customer);
   const showLimitBanner = shouldShowTierLimitBanner(user.customer);
   const showReconciliation = canOpenReconciliation(user.customer);
@@ -177,7 +192,8 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
               {getKycStatusLabel(kycStatus)}
             </Badge>
             <Badge variant="default">{getTierDisplayLabel(user.customer)}</Badge>
-            {isRestricted && <Badge variant="danger">AML Restricted</Badge>}
+            {isAmlRestricted && <Badge variant="danger">AML Restricted</Badge>}
+            {isBalanceRestricted && <Badge variant="danger">Balance Restricted</Badge>}
           </div>
 
           <div className="mb-4">
@@ -192,6 +208,24 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             >
               Account Status — {accountStatus.label}
             </span>
+          </div>
+
+          <div className="mb-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Provider Status</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant="default">
+                Account: {isLoadingProviderStatus ? 'Loading...' : hasProviderStatusError ? 'Unavailable' : providerStatus?.accountStatus || 'Unavailable'}
+              </Badge>
+              <Badge variant="default">
+                Restriction:{' '}
+                {isLoadingProviderStatus
+                  ? 'Loading...'
+                  : hasProviderStatusError
+                    ? 'Unavailable'
+                    : providerStatus?.restrictionStatus || 'None'}
+              </Badge>
+              {providerStatus?.accountTier && <Badge variant="default">Tier: {providerStatus.accountTier}</Badge>}
+            </div>
           </div>
 
           {actionMessage && (
@@ -225,10 +259,18 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             </div>
           )}
 
-          {isRestricted && user.customer?.amlRestrictionReason && (
+          {isAmlRestricted && user.customer?.amlRestrictionReason && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">
-                <strong>Restriction reason:</strong> {user.customer.amlRestrictionReason}
+                <strong>AML restriction reason:</strong> {user.customer.amlRestrictionReason}
+              </p>
+            </div>
+          )}
+
+          {isBalanceRestricted && user.customer?.balanceRestrictionReason && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">
+                <strong>Balance restriction reason:</strong> {user.customer.balanceRestrictionReason}
               </p>
             </div>
           )}
@@ -304,7 +346,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
               </Link>
             )}
 
-            {getCustomerTier(user.customer) !== 'Tier_0' && isPendingKyc(user.customer) && (
+            {canSendKycReminder(user.customer) && (
               <Button
                 onClick={() => reminderMutation.mutate()}
                 className="w-full"
@@ -312,7 +354,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
                 isLoading={reminderMutation.isPending}
               >
                 <Send className="h-4 w-4 mr-2" />
-                Send KYC Reminder
+                {getKycReminderButtonLabel(user.customer)}
               </Button>
             )}
 

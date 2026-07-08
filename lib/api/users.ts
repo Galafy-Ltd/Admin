@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { UsersResponse, User, SearchUsersResponse } from '../types/api';
+import type { UsersResponse, User, SearchUsersResponse, PartnerAccountStatus } from '../types/api';
 
 export interface GetUsersParams {
   page?: number;
@@ -8,6 +8,7 @@ export interface GetUsersParams {
   tier?: string;
   kycStatus?: 'pending' | 'completed';
   isAmlRestricted?: boolean;
+  hasMismatch?: boolean;
 }
 
 export const usersApi = {
@@ -18,6 +19,13 @@ export const usersApi = {
 
   async getUserDetails(userId: string): Promise<User> {
     const response = await apiClient.getClient().get<User>(`/admin/users/${userId}`);
+    return response.data;
+  },
+
+  async getPartnerKycStatus(customerId: string): Promise<PartnerAccountStatus> {
+    const response = await apiClient
+      .getClient()
+      .get<PartnerAccountStatus>(`/admin/customers/${customerId}/partner-kyc-status`);
     return response.data;
   },
 

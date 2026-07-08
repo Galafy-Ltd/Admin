@@ -21,6 +21,10 @@ import {
   getTierKycStatus,
 } from '@/lib/utils/kyc';
 import { usersApi } from '@/lib/api/users';
+import {
+  getReconciliationStatusBadgeVariant,
+  getReconciliationStatusLabel,
+} from '@/lib/utils/reconciliation';
 import type { User, KycTier } from '@/lib/types/api';
 
 function tierBadgeVariant(tier?: KycTier | null): 'info' | 'warning' | 'success' | 'default' {
@@ -34,10 +38,17 @@ function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const userId = searchParams.get('userId');
+  const initialKycStatus = searchParams.get('kycStatus');
+  const initialMismatch = searchParams.get('hasMismatch');
 
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(
+    initialKycStatus === 'pending' || initialKycStatus === 'completed' ? initialKycStatus : 'all',
+  );
+  const [mismatchFilter, setMismatchFilter] = useState(
+    initialMismatch === 'true' ? 'mismatch' : initialMismatch === 'false' ? 'in_sync' : 'all',
+  );
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -45,7 +56,20 @@ function UsersPageContent() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, tierFilter, statusFilter]);
+  }, [search, tierFilter, statusFilter, mismatchFilter]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (statusFilter === 'all') params.delete('kycStatus');
+    else params.set('kycStatus', statusFilter);
+    if (mismatchFilter === 'all') params.delete('hasMismatch');
+    else params.set('hasMismatch', mismatchFilter === 'mismatch' ? 'true' : 'false');
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(`/users${next ? `?${next}` : ''}`);
+    }
+  }, [statusFilter, mismatchFilter, router, searchParams]);
 
   const handleCloseModal = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -58,12 +82,14 @@ function UsersPageContent() {
   };
 
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ['users', { search, tier: tierFilter, kycStatus: statusFilter, page, limit }],
+    queryKey: ['users', { search, tier: tierFilter, kycStatus: statusFilter, hasMismatch: mismatchFilter, page, limit }],
     queryFn: () =>
       usersApi.getUsers({
         search: search || undefined,
         tier: tierFilter !== 'all' ? tierFilter : undefined,
         kycStatus: statusFilter !== 'all' ? (statusFilter as 'pending' | 'completed') : undefined,
+        hasMismatch:
+          mismatchFilter === 'mismatch' ? true : mismatchFilter === 'in_sync' ? false : undefined,
         page,
         limit,
       }),
@@ -73,13 +99,14 @@ function UsersPageContent() {
   const pagination = usersData?.pagination;
 
   const hasActiveFilters = useMemo(() => {
-    return !!(search || tierFilter !== 'all' || statusFilter !== 'all');
-  }, [search, tierFilter, statusFilter]);
+    return !!(search || tierFilter !== 'all' || statusFilter !== 'all' || mismatchFilter !== 'all');
+  }, [search, tierFilter, statusFilter, mismatchFilter]);
 
   const handleClearFilters = () => {
     setSearch('');
     setTierFilter('all');
     setStatusFilter('all');
+    setMismatchFilter('all');
     setPage(1);
   };
 
@@ -91,6 +118,8 @@ function UsersPageContent() {
       if (search) params.search = search;
       if (tierFilter !== 'all') params.tier = tierFilter;
       if (statusFilter !== 'all') params.kycStatus = statusFilter;
+      if (mismatchFilter === 'mismatch') params.hasMismatch = 'true';
+      if (mismatchFilter === 'in_sync') params.hasMismatch = 'false';
 
       const blob = await usersApi.exportUsers(params);
       const url = window.URL.createObjectURL(blob);
@@ -148,6 +177,15 @@ function UsersPageContent() {
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
         />
+        <Select
+          options={[
+            { value: 'all', label: 'All Reconciliation' },
+            { value: 'mismatch', label: 'Mismatch' },
+            { value: 'in_sync', label: 'In Sync' },
+          ]}
+          value={mismatchFilter}
+          onChange={(e) => setMismatchFilter(e.target.value)}
+        />
       </div>
 
       {exportError && (
@@ -178,19 +216,20 @@ function UsersPageContent() {
               <TableHeader>Tier</TableHeader>
               <TableHeader>Contact</TableHeader>
               <TableHeader>Wallet Balance</TableHeader>
+              <TableHeader>Reconciliation</TableHeader>
               <TableHeader>Status</TableHeader>
             </TableRow>
           </TableHead>
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
                   No users found
                 </TableCell>
               </TableRow>
@@ -229,6 +268,11 @@ function UsersPageContent() {
                       </div>
                     </TableCell>
                     <TableCell>{formatCurrency(user.customer?.wallets?.[0]?.availableBalance || '0')}</TableCell>
+                    <TableCell>
+                      <Badge variant={getReconciliationStatusBadgeVariant(user.reconciliationStatus)}>
+                        {getReconciliationStatusLabel(user.reconciliationStatus)}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <Badge variant={getKycStatusBadgeVariant(kycStatus)}>
                         {getKycStatusLabel(kycStatus)}
