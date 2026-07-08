@@ -43,8 +43,8 @@ export default function NotificationsPage() {
         page,
         limit,
         type: typeFilter === 'all' ? undefined : typeFilter,
-        read:
-          readFilter === 'all' ? undefined : readFilter === 'read' ? true : readFilter === 'unread' ? false : undefined,
+        readStatus:
+          readFilter === 'all' ? undefined : readFilter === 'read' ? 'read' : readFilter === 'unread' ? 'unread' : undefined,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
       }),

@@ -4,7 +4,7 @@ import type { NotificationsResponse, Notification } from '../types/api';
 export interface GetNotificationsParams {
   page?: number;
   limit?: number;
-  read?: boolean;
+  readStatus?: 'read' | 'unread';
   type?: string;
   startDate?: string;
   endDate?: string;
