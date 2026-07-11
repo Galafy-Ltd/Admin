@@ -159,6 +159,9 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const accountStatus = getAccountStatus(user.customer);
   const showLimitBanner = shouldShowTierLimitBanner(user.customer);
   const showReconciliation = canOpenReconciliation(user.customer);
+  const providerRestriction = providerStatus?.restrictionStatus?.trim();
+  const showProviderRestriction =
+    !!providerRestriction && !/^(none|n\/a|null|undefined|-)$/i.test(providerRestriction);
 
   return (
     <>
@@ -216,14 +219,9 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
               <Badge variant="default">
                 Account: {isLoadingProviderStatus ? 'Loading...' : hasProviderStatusError ? 'Unavailable' : providerStatus?.accountStatus || 'Unavailable'}
               </Badge>
-              <Badge variant="default">
-                Restriction:{' '}
-                {isLoadingProviderStatus
-                  ? 'Loading...'
-                  : hasProviderStatusError
-                    ? 'Unavailable'
-                    : providerStatus?.restrictionStatus || 'None'}
-              </Badge>
+              {showProviderRestriction ? (
+                <Badge variant="default">Restriction: {providerRestriction}</Badge>
+              ) : null}
               {providerStatus?.accountTier && <Badge variant="default">Tier: {providerStatus.accountTier}</Badge>}
             </div>
           </div>

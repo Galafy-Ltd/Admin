@@ -107,6 +107,16 @@ export interface UsersResponse {
   pagination: Pagination;
 }
 
+export interface UserStats {
+  totalUsers: number;
+  totalUsersLast30Days: number;
+  unverifiedUsers: number;
+  unverifiedUsersLast30Days: number;
+  walletActivated: number;
+  walletActivatedLast30Days: number;
+  activeUsersLast30Days: number;
+}
+
 export interface SearchUsersResponse {
   users: User[];
 }

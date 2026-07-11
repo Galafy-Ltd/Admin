@@ -19,6 +19,7 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; width: number }>({
     top: 0,
     left: 0,
@@ -30,9 +31,11 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setOpen(false);
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
       }
+      setOpen(false);
     };
     const updatePosition = () => {
       if (!buttonRef.current) return;
@@ -81,7 +84,8 @@ export function RowActionsMenu({ actions }: RowActionsMenuProps) {
       {open &&
         createPortal(
           <div
-            className="fixed z-100 rounded-md border border-gray-200 bg-white shadow-lg py-1"
+            ref={menuRef}
+            className="fixed z-[100] rounded-md border border-gray-200 bg-white shadow-lg py-1"
             style={{ top: menuStyle.top, left: menuStyle.left, width: menuStyle.width }}
           >
             {actions.map((action) => (

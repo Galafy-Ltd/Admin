@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Download, X } from 'lucide-react';
+import { Search, Download, X, Users, UserCheck, Wallet, Activity } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
@@ -13,6 +13,7 @@ import { Select } from '@/components/ui/Select';
 import { Pagination } from '@/components/ui/Pagination';
 import { Avatar } from '@/components/ui/Avatar';
 import { UserDetailsModal } from '@/components/features/users/UserDetailsModal';
+import { UsersStatCard } from '@/components/features/users/UsersStatCard';
 import { formatCurrency } from '@/lib/utils/format';
 import {
   formatTierLabel,
@@ -59,6 +60,13 @@ function UsersPageContent() {
   }, [search, tierFilter, statusFilter, mismatchFilter]);
 
   useEffect(() => {
+    const kycFromUrl = searchParams.get('kycStatus');
+    const nextStatus =
+      kycFromUrl === 'pending' || kycFromUrl === 'completed' ? kycFromUrl : 'all';
+    setStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
+  }, [searchParams]);
+
+  useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
     if (statusFilter === 'all') params.delete('kycStatus');
     else params.set('kycStatus', statusFilter);
@@ -93,6 +101,11 @@ function UsersPageContent() {
         page,
         limit,
       }),
+  });
+
+  const { data: userStats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['user-stats'],
+    queryFn: () => usersApi.getUserStats(),
   });
 
   const users: User[] = usersData?.users || [];
@@ -142,6 +155,45 @@ function UsersPageContent() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Users Management</h1>
         <p className="text-gray-600">Monitor and manage all your users in one place.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {isLoadingStats || !userStats ? (
+          <>
+            <div className="h-28 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-28 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-28 bg-gray-100 rounded-lg animate-pulse" />
+            <div className="h-28 bg-gray-100 rounded-lg animate-pulse" />
+          </>
+        ) : (
+          <>
+            <UsersStatCard
+              title="Total Users"
+              value={userStats.totalUsers}
+              icon={Users}
+              footer={`+${userStats.totalUsersLast30Days.toLocaleString()} in 30 days`}
+            />
+            <UsersStatCard
+              title="Unverified Users"
+              value={userStats.unverifiedUsers}
+              icon={UserCheck}
+              footer={`+${userStats.unverifiedUsersLast30Days.toLocaleString()} in 30 days`}
+              href="/users?kycStatus=pending"
+            />
+            <UsersStatCard
+              title="Wallet Activated"
+              value={userStats.walletActivated}
+              icon={Wallet}
+              footer={`+${userStats.walletActivatedLast30Days.toLocaleString()} in 30 days`}
+            />
+            <UsersStatCard
+              title="Active Users"
+              value={userStats.activeUsersLast30Days}
+              icon={Activity}
+              footer="Logged in last 30 days"
+            />
+          </>
+        )}
       </div>
 
       <div className="flex gap-4 flex-wrap">

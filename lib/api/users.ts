@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { UsersResponse, User, SearchUsersResponse, PartnerAccountStatus } from '../types/api';
+import type { UsersResponse, User, SearchUsersResponse, PartnerAccountStatus, UserStats } from '../types/api';
 
 export interface GetUsersParams {
   page?: number;
@@ -17,6 +17,11 @@ export const usersApi = {
     return response.data;
   },
 
+  async getUserStats(): Promise<UserStats> {
+    const response = await apiClient.getClient().get<UserStats>('/admin/users/stats');
+    return response.data;
+  },
+
   async getUserDetails(userId: string): Promise<User> {
     const response = await apiClient.getClient().get<User>(`/admin/users/${userId}`);
     return response.data;
@@ -25,8 +30,8 @@ export const usersApi = {
   async getPartnerKycStatus(customerId: string): Promise<PartnerAccountStatus> {
     const response = await apiClient
       .getClient()
-      .get<PartnerAccountStatus>(`/admin/customers/${customerId}/partner-kyc-status`);
-    return response.data;
+      .get<{ partnerKyc: PartnerAccountStatus }>(`/admin/customers/${customerId}/partner-kyc-status`);
+    return response.data.partnerKyc;
   },
 
   async sendKycReminder(userId: string): Promise<{ message: string }> {
