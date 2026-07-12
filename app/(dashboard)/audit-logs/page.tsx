@@ -7,12 +7,15 @@ import { Card } from '@/components/ui/Card';
 import { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Modal } from '@/components/ui/Modal';
 import { Pagination } from '@/components/ui/Pagination';
 import { formatDateTimeWAT } from '@/lib/utils/format';
 import { auditLogsApi } from '@/lib/api/audit-logs';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/constants/permissions';
+import { AUDIT_ACTION_TYPE_OPTIONS } from '@/lib/constants/audit-action-types';
 import type { AuditLog } from '@/lib/types/api';
 
 function formatDetailsSummary(details: Record<string, unknown> | null | undefined): string {
@@ -21,6 +24,15 @@ function formatDetailsSummary(details: Record<string, unknown> | null | undefine
   if (keys.length === 0) return '—';
   const preview = keys.slice(0, 3).map((key) => `${key}: ${String(details[key])}`).join(', ');
   return keys.length > 3 ? `${preview}, ...` : preview;
+}
+
+function formatDetailsJson(details: Record<string, unknown> | null | undefined): string {
+  if (!details || typeof details !== 'object') return '—';
+  try {
+    return JSON.stringify(details, null, 2);
+  } catch {
+    return String(details);
+  }
 }
 
 export default function AuditLogsPage() {
@@ -35,6 +47,7 @@ export default function AuditLogsPage() {
   const [endDate, setEndDate] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const limit = 20;
 
   const { data, isLoading, error } = useQuery({
@@ -118,10 +131,10 @@ export default function AuditLogsPage() {
 
       <Card title="Filters">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Input
+          <Select
             label="Action type"
-            placeholder="e.g. USER_RESTRICTED"
             value={actionType}
+            options={[...AUDIT_ACTION_TYPE_OPTIONS]}
             onChange={(e) => {
               setPage(1);
               setActionType(e.target.value);
@@ -209,7 +222,11 @@ export default function AuditLogsPage() {
               </TableRow>
             ) : (
               logs.map((log) => (
-                <TableRow key={log.id}>
+                <TableRow
+                  key={log.id}
+                  className="cursor-pointer"
+                  onClick={() => setSelectedLog(log)}
+                >
                   <TableCell>{formatDateTimeWAT(log.createdAt)}</TableCell>
                   <TableCell>
                     <div>
@@ -245,6 +262,56 @@ export default function AuditLogsPage() {
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={!!selectedLog}
+        onClose={() => setSelectedLog(null)}
+        title="Audit log details"
+        description={selectedLog ? selectedLog.actionType : undefined}
+        size="lg"
+      >
+        {selectedLog && (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Date</p>
+                <p className="mt-1 text-gray-900">{formatDateTimeWAT(selectedLog.createdAt)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Admin</p>
+                <p className="mt-1 text-gray-900">{selectedLog.admin?.email || selectedLog.adminId}</p>
+                {selectedLog.admin?.role && (
+                  <p className="text-xs text-gray-500">{selectedLog.admin.role}</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Action</p>
+                <p className="mt-1 text-gray-900">{selectedLog.actionType}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Target</p>
+                <p className="mt-1 text-gray-900">{selectedLog.targetType}</p>
+                <p className="text-xs text-gray-500 break-all">{selectedLog.targetId}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Reason</p>
+              <p className="mt-1 text-gray-900 whitespace-pre-wrap">{selectedLog.reason || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Details</p>
+              <pre className="overflow-x-auto rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs text-gray-800 whitespace-pre-wrap wrap-break-word">
+                {formatDetailsJson(selectedLog.details)}
+              </pre>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button variant="outline" onClick={() => setSelectedLog(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

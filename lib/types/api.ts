@@ -93,8 +93,12 @@ export interface Wallet {
   id: string;
   balance?: string;
   availableBalance?: string;
+  ledgerBalance?: string;
   virtualAccountNumber?: string | null;
-  currency: string;
+  currency?: string;
+  currencyId?: string;
+  riskStatus?: string | null;
+  riskScore?: string | number | null;
 }
 
 export interface WithdrawalLimit {

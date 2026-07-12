@@ -1,6 +1,10 @@
 /** Set before redirecting to login when the API returns 401; login page reads and clears it. */
 export const AUTH_SESSION_NOTICE_STORAGE_KEY = 'galafy_auth_notice';
 export const AUTH_SESSION_NOTICE_EXPIRED = 'session_expired';
+export const AUTH_SESSION_NOTICE_IDLE = 'idle_timeout';
+
+/** Idle auto sign-out after 15 minutes of no user activity. */
+export const ADMIN_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 export const getStoredTokens = () => {
   if (typeof window === 'undefined') return { accessToken: null, refreshToken: null };

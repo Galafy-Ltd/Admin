@@ -90,7 +90,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const unrestrictMutation = useMutation({
     mutationFn: () => usersApi.unrestrictUser(userId),
     onSuccess: () => {
-      setActionMessage({ type: 'success', text: 'Account unrestricted successfully.' });
+      setActionMessage({ type: 'success', text: 'Account unrestricted successfully. Internal freezes cleared.' });
       queryClient.invalidateQueries({ queryKey: ['user', userId] });
     },
     onError: (err: { response?: { data?: { message?: string } } }) => {
@@ -155,13 +155,18 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
   const showReverseTier3 = canReverseTier3(user.customer);
   const isAmlRestricted = user.customer?.isAmlRestricted;
   const isBalanceRestricted = user.customer?.isBalanceRestricted;
-  const isRestricted = isAmlRestricted || isBalanceRestricted;
+  const primaryWallet =
+    user.customer?.wallets?.find((w) => w.virtualAccountNumber) ?? user.customer?.wallets?.[0];
+  const walletRiskStatus = primaryWallet?.riskStatus?.toUpperCase() || 'NORMAL';
+  const isWalletFrozen = walletRiskStatus === 'SOFT_FREEZE' || walletRiskStatus === 'HARD_FREEZE';
+  const isRestricted = isAmlRestricted || isBalanceRestricted || isWalletFrozen;
   const accountStatus = getAccountStatus(user.customer);
   const showLimitBanner = shouldShowTierLimitBanner(user.customer);
   const showReconciliation = canOpenReconciliation(user.customer);
   const providerRestriction = providerStatus?.restrictionStatus?.trim();
   const showProviderRestriction =
     !!providerRestriction && !/^(none|n\/a|null|undefined|-)$/i.test(providerRestriction);
+  const hasInternalRestriction = isAmlRestricted || isBalanceRestricted || isWalletFrozen;
 
   return (
     <>
@@ -197,6 +202,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             <Badge variant="default">{getTierDisplayLabel(user.customer)}</Badge>
             {isAmlRestricted && <Badge variant="danger">AML Restricted</Badge>}
             {isBalanceRestricted && <Badge variant="danger">Balance Restricted</Badge>}
+            {isWalletFrozen && <Badge variant="danger">Wallet {walletRiskStatus.replace('_', ' ')}</Badge>}
           </div>
 
           <div className="mb-4">
@@ -224,6 +230,25 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
               ) : null}
               {providerStatus?.accountTier && <Badge variant="default">Tier: {providerStatus.accountTier}</Badge>}
             </div>
+          </div>
+
+          <div className="mb-4">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Internal Restriction</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Badge variant={isAmlRestricted ? 'danger' : 'success'}>
+                AML: {isAmlRestricted ? 'Restricted' : 'None'}
+              </Badge>
+              <Badge variant={isBalanceRestricted ? 'danger' : 'success'}>
+                Balance: {isBalanceRestricted ? 'Restricted' : 'None'}
+              </Badge>
+              <Badge variant={isWalletFrozen ? 'danger' : 'success'}>
+                Wallet: {walletRiskStatus.replace(/_/g, ' ')}
+                {primaryWallet?.riskScore != null ? ` (score ${primaryWallet.riskScore})` : ''}
+              </Badge>
+            </div>
+            {!hasInternalRestriction && (
+              <p className="mt-2 text-xs text-gray-500">No internal AML, balance, or wallet freeze restrictions.</p>
+            )}
           </div>
 
           {actionMessage && (
@@ -269,6 +294,16 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-sm text-red-800">
                 <strong>Balance restriction reason:</strong> {user.customer.balanceRestrictionReason}
+              </p>
+            </div>
+          )}
+
+          {isWalletFrozen && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm text-red-800">
+                <strong>Wallet freeze:</strong> {walletRiskStatus.replace(/_/g, ' ')}
+                {primaryWallet?.riskScore != null ? ` (risk score ${primaryWallet.riskScore})` : ''}.
+                Use Unrestrict Account to clear this internal freeze.
               </p>
             </div>
           )}

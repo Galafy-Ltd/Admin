@@ -1,11 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '@/lib/api/auth';
 import type { Admin, LoginRequest, LoginResponse } from '@/lib/types/api';
-import { getStoredTokens } from '@/lib/utils/auth';
+import {
+  getStoredTokens,
+  AUTH_SESSION_NOTICE_STORAGE_KEY,
+  AUTH_SESSION_NOTICE_IDLE,
+  ADMIN_IDLE_TIMEOUT_MS,
+} from '@/lib/utils/auth';
 
 interface AuthContextType {
   admin: Admin | null;
@@ -18,6 +23,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const IDLE_ACTIVITY_EVENTS: Array<keyof WindowEventMap> = [
+  'mousedown',
+  'mousemove',
+  'keydown',
+  'scroll',
+  'touchstart',
+  'click',
+];
+
 function persistAdminSession(admin: Admin) {
   localStorage.setItem('admin_data', JSON.stringify(admin));
 }
@@ -26,6 +40,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [admin, setAdmin] = useState<Admin | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loggingOutForIdleRef = useRef(false);
 
   const { data: adminData, isLoading } = useQuery({
     queryKey: ['admin'],
@@ -83,11 +99,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await verifyTwoFactorMutation.mutateAsync({ tempToken, code });
   };
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await logoutMutation.mutateAsync();
-  };
+  }, [logoutMutation.mutateAsync]);
+
+  const logoutRef = useRef(logout);
+  logoutRef.current = logout;
+
+  const clearIdleTimer = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = null;
+    }
+  }, []);
+
+  const handleIdleTimeout = useCallback(async () => {
+    if (loggingOutForIdleRef.current) return;
+    loggingOutForIdleRef.current = true;
+    try {
+      sessionStorage.setItem(AUTH_SESSION_NOTICE_STORAGE_KEY, AUTH_SESSION_NOTICE_IDLE);
+    } catch {
+      /* ignore */
+    }
+    try {
+      await logoutRef.current();
+    } catch {
+      setAdmin(null);
+      queryClient.clear();
+      router.push('/login');
+    } finally {
+      loggingOutForIdleRef.current = false;
+    }
+  }, [queryClient, router]);
+
+  const resetIdleTimer = useCallback(() => {
+    clearIdleTimer();
+    idleTimerRef.current = setTimeout(() => {
+      void handleIdleTimeout();
+    }, ADMIN_IDLE_TIMEOUT_MS);
+  }, [clearIdleTimer, handleIdleTimeout]);
 
   const isAuthenticated = !!admin && !!getStoredTokens().accessToken;
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearIdleTimer();
+      return;
+    }
+
+    resetIdleTimer();
+    const onActivity = () => resetIdleTimer();
+    for (const eventName of IDLE_ACTIVITY_EVENTS) {
+      window.addEventListener(eventName, onActivity, { passive: true });
+    }
+
+    return () => {
+      clearIdleTimer();
+      for (const eventName of IDLE_ACTIVITY_EVENTS) {
+        window.removeEventListener(eventName, onActivity);
+      }
+    };
+  }, [isAuthenticated, resetIdleTimer, clearIdleTimer]);
 
   return (
     <AuthContext.Provider

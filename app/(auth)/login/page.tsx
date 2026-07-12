@@ -14,6 +14,7 @@ import type { LoginRequest } from '@/lib/types/api';
 import {
   AUTH_SESSION_NOTICE_STORAGE_KEY,
   AUTH_SESSION_NOTICE_EXPIRED,
+  AUTH_SESSION_NOTICE_IDLE,
 } from '@/lib/utils/auth';
 
 const MAIN_SITE_URL = process.env.NEXT_PUBLIC_MAIN_SITE_URL || 'https://galafy.com';
@@ -36,8 +37,12 @@ export default function LoginPage() {
 
   useEffect(() => {
     try {
-      if (sessionStorage.getItem(AUTH_SESSION_NOTICE_STORAGE_KEY) === AUTH_SESSION_NOTICE_EXPIRED) {
+      const notice = sessionStorage.getItem(AUTH_SESSION_NOTICE_STORAGE_KEY);
+      if (notice === AUTH_SESSION_NOTICE_EXPIRED) {
         setSessionNotice('Your session has expired. Please sign in again.');
+        sessionStorage.removeItem(AUTH_SESSION_NOTICE_STORAGE_KEY);
+      } else if (notice === AUTH_SESSION_NOTICE_IDLE) {
+        setSessionNotice('Signed out due to inactivity. Please sign in again.');
         sessionStorage.removeItem(AUTH_SESSION_NOTICE_STORAGE_KEY);
       }
     } catch {
