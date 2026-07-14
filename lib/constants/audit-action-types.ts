@@ -18,6 +18,8 @@ export const AUDIT_ACTION_TYPE_OPTIONS = [
   { value: 'ADMIN_UPDATED', label: 'ADMIN_UPDATED' },
   { value: 'ADMIN_DEACTIVATED', label: 'ADMIN_DEACTIVATED' },
   { value: 'ADMIN_ROLE_ASSIGNED', label: 'ADMIN_ROLE_ASSIGNED' },
+  { value: 'ADMIN_LOGIN', label: 'ADMIN_LOGIN' },
+  { value: 'ADMIN_EXPORT', label: 'ADMIN_EXPORT' },
   { value: 'EVENT_SUSPENDED', label: 'EVENT_SUSPENDED' },
   { value: 'EVENT_DELETED', label: 'EVENT_DELETED' },
   { value: 'WITHDRAWAL_REJECTED', label: 'WITHDRAWAL_REJECTED' },

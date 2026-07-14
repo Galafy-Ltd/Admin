@@ -6,12 +6,14 @@ import { GeneralTab } from '@/components/features/settings/GeneralTab';
 import { RolesTab } from '@/components/features/settings/RolesTab';
 import { SecurityTab } from '@/components/features/settings/SecurityTab';
 import { NotificationsTab } from '@/components/features/settings/NotificationsTab';
+import { ConfigurationTab } from '@/components/features/settings/ConfigurationTab';
 
 const tabs = [
   { id: 'general', label: 'General' },
   { id: 'roles', label: 'Roles & Permissions' },
   { id: 'security', label: 'Security' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'configuration', label: 'Configuration' },
 ];
 
 export default function SettingsPage() {
@@ -63,6 +65,7 @@ export default function SettingsPage() {
         {activeTab === 'roles' && <RolesTab />}
         {activeTab === 'security' && <SecurityTab />}
         {activeTab === 'notifications' && <NotificationsTab />}
+        {activeTab === 'configuration' && <ConfigurationTab />}
       </div>
     </div>
   );
