@@ -442,6 +442,8 @@ export interface TopSprayer {
   sprayCount?: number;
   firstSprayAt?: string;
   lastSprayAt?: string;
+  /** True when UserSettings.visibleAtEvents is false */
+  isAnonymous?: boolean;
 }
 
 export type TransactionType = 'INFLOW' | 'SPRAY' | 'PAYOUT' | 'REFUND' | 'ADJUSTMENT';

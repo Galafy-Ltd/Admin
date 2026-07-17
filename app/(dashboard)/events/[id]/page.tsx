@@ -353,13 +353,15 @@ export default function EventDetailsPage() {
                   <p className="text-center text-gray-500 py-4">No sprayers yet</p>
                 ) : (
                   topSprayers?.leaderboard?.map((sprayer: TopSprayer, index: number) => {
+                    const isAnonymous = sprayer.isAnonymous === true;
                     const displayName =
-                      sprayer.user?.username ||
-                      sprayer.user?.email ||
-                      (sprayer as { username?: string; email?: string }).username ||
-                      (sprayer as { username?: string; email?: string }).email ||
-                      'Anonymous User';
-                    const isAnonymous = !sprayer.user && !showAnonymous;
+                      isAnonymous && !showAnonymous
+                        ? 'anonymous'
+                        : sprayer.user?.username ||
+                          sprayer.user?.email ||
+                          (sprayer as { username?: string; email?: string }).username ||
+                          (sprayer as { username?: string; email?: string }).email ||
+                          'anonymous';
 
                     return (
                     <div
@@ -376,7 +378,6 @@ export default function EventDetailsPage() {
                         <div>
                           <p className="font-medium text-sm text-gray-900">
                             {displayName}
-                            {isAnonymous && <span className="text-gray-500 ml-1">*</span>}
                           </p>
                         </div>
                       </div>
