@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import type { LucideIcon } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 
@@ -9,12 +8,11 @@ interface UsersStatCardProps {
   value: number;
   icon: LucideIcon;
   footer: string;
-  href?: string;
 }
 
-export function UsersStatCard({ title, value, icon: Icon, footer, href }: UsersStatCardProps) {
-  const content = (
-    <Card className={href ? 'transition-shadow hover:shadow-md cursor-pointer' : undefined}>
+export function UsersStatCard({ title, value, icon: Icon, footer }: UsersStatCardProps) {
+  return (
+    <Card>
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0D2A68]">
           <Icon className="h-5 w-5 text-white" />
@@ -27,10 +25,4 @@ export function UsersStatCard({ title, value, icon: Icon, footer, href }: UsersS
       </div>
     </Card>
   );
-
-  if (href) {
-    return <Link href={href}>{content}</Link>;
-  }
-
-  return content;
 }

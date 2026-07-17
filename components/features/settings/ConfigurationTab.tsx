@@ -17,13 +17,25 @@ import { configApi } from '@/lib/api/config';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { usePermissions } from '@/lib/hooks/usePermissions';
 import { PERMISSIONS } from '@/lib/constants/permissions';
-import { createConfigSchema, updateConfigSchema } from '@/lib/utils/validation';
+import {
+  createConfigSchema,
+  updateConfigSchema,
+  getConfigValueTypeError,
+} from '@/lib/utils/validation';
 import { formatDateTimeWAT } from '@/lib/utils/format';
 import type { Config } from '@/lib/types/api';
 import { z } from 'zod';
 
 type CreateConfigForm = z.infer<typeof createConfigSchema>;
 type UpdateConfigForm = z.infer<typeof updateConfigSchema>;
+
+const CREATE_DEFAULTS: CreateConfigForm = {
+  key: '',
+  category: '',
+  value: '',
+  type: 'STRING',
+  description: '',
+};
 
 const CONFIG_TYPE_OPTIONS = [
   { value: 'STRING', label: 'STRING' },
@@ -51,6 +63,8 @@ export function ConfigurationTab() {
   const [editConfig, setEditConfig] = useState<Config | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['configs'],
@@ -83,26 +97,38 @@ export function ConfigurationTab() {
 
   const createForm = useForm<CreateConfigForm>({
     resolver: zodResolver(createConfigSchema),
-    defaultValues: {
-      key: '',
-      category: '',
-      value: '',
-      type: 'STRING',
-      description: '',
-    },
+    defaultValues: CREATE_DEFAULTS,
   });
+
+  const openCreateModal = () => {
+    createForm.reset(CREATE_DEFAULTS);
+    setCreateError(null);
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setCreateError(null);
+    createForm.reset(CREATE_DEFAULTS);
+  };
+
+  const closeEditModal = () => {
+    setEditConfig(null);
+    setEditError(null);
+    editForm.clearErrors();
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({ key, data }: { key: string; data: UpdateConfigForm }) =>
       configApi.updateConfig(key, data),
     onSuccess: async () => {
       setMessage({ type: 'success', text: 'Configuration updated.' });
-      setEditConfig(null);
+      closeEditModal();
       await queryClient.invalidateQueries({ queryKey: ['configs'] });
     },
     onError: (error: unknown) => {
       const err = error as { response?: { data?: { message?: string } } };
-      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to update config.' });
+      setEditError(err?.response?.data?.message || 'Failed to update config.');
     },
   });
 
@@ -117,13 +143,12 @@ export function ConfigurationTab() {
       }),
     onSuccess: async () => {
       setMessage({ type: 'success', text: 'Configuration created.' });
-      setShowCreateModal(false);
-      createForm.reset();
+      closeCreateModal();
       await queryClient.invalidateQueries({ queryKey: ['configs'] });
     },
     onError: (error: unknown) => {
       const err = error as { response?: { data?: { message?: string } } };
-      setMessage({ type: 'error', text: err?.response?.data?.message || 'Failed to create config.' });
+      setCreateError(err?.response?.data?.message || 'Failed to create config.');
     },
   });
 
@@ -178,7 +203,7 @@ export function ConfigurationTab() {
             </div>
           </div>
           {canManage && (
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={openCreateModal}>
               <Plus className="h-4 w-4 mr-2" />
               Add Config
             </Button>
@@ -248,7 +273,10 @@ export function ConfigurationTab() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setEditConfig(config)}
+                          onClick={() => {
+                            setEditError(null);
+                            setEditConfig(config);
+                          }}
                           disabled={!config.isActive}
                         >
                           <Pencil className="h-3.5 w-3.5" />
@@ -279,7 +307,7 @@ export function ConfigurationTab() {
 
       <Modal
         isOpen={!!editConfig}
-        onClose={() => setEditConfig(null)}
+        onClose={closeEditModal}
         title="Edit configuration"
         description={editConfig ? `Update value for ${editConfig.key}` : undefined}
       >
@@ -287,9 +315,16 @@ export function ConfigurationTab() {
           className="space-y-4"
           onSubmit={editForm.handleSubmit((data) => {
             if (!editConfig) return;
+            const typeError = getConfigValueTypeError(data.value, editConfig.type);
+            if (typeError) {
+              editForm.setError('value', { message: typeError });
+              return;
+            }
+            setEditError(null);
             updateMutation.mutate({ key: editConfig.key, data });
           })}
         >
+          {editError && <AuthAlert variant="error" message={editError} />}
           <Input label="Value" error={editForm.formState.errors.value?.message} {...editForm.register('value')} />
           <Input
             label="Description"
@@ -297,7 +332,7 @@ export function ConfigurationTab() {
             {...editForm.register('description')}
           />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setEditConfig(null)}>
+            <Button type="button" variant="outline" onClick={closeEditModal}>
               Cancel
             </Button>
             <Button type="submit" isLoading={updateMutation.isPending}>
@@ -309,14 +344,18 @@ export function ConfigurationTab() {
 
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={closeCreateModal}
         title="Create configuration"
         description="Add a new system configuration key."
       >
         <form
           className="space-y-4"
-          onSubmit={createForm.handleSubmit((data) => createMutation.mutate(data))}
+          onSubmit={createForm.handleSubmit((data) => {
+            setCreateError(null);
+            createMutation.mutate(data);
+          })}
         >
+          {createError && <AuthAlert variant="error" message={createError} />}
           <Input label="Key" error={createForm.formState.errors.key?.message} {...createForm.register('key')} />
           <Input
             label="Category"
@@ -332,6 +371,11 @@ export function ConfigurationTab() {
           <Input
             label="Value"
             error={createForm.formState.errors.value?.message}
+            helperText={
+              createForm.watch('type') === 'BOOLEAN'
+                ? 'Use true, false, 1, 0, yes, or no'
+                : undefined
+            }
             {...createForm.register('value')}
           />
           <Input
@@ -340,7 +384,7 @@ export function ConfigurationTab() {
             {...createForm.register('description')}
           />
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>
+            <Button type="button" variant="outline" onClick={closeCreateModal}>
               Cancel
             </Button>
             <Button type="submit" isLoading={createMutation.isPending}>

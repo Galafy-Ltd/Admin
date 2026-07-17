@@ -45,11 +45,56 @@ export const updateConfigSchema = z.object({
   description: z.string().optional(),
 });
 
-export const createConfigSchema = z.object({
-  key: z.string().min(1, 'Key is required'),
-  category: z.string().min(1, 'Category is required'),
-  value: z.string().min(1, 'Value is required'),
-  type: z.string().min(1, 'Type is required'),
-  description: z.string().optional(),
-});
+const CONFIG_TYPES = ['STRING', 'NUMBER', 'DECIMAL', 'BOOLEAN', 'JSON'] as const;
+
+export function getConfigValueTypeError(value: string, type: string): string | null {
+  switch (type) {
+    case 'NUMBER':
+      if (Number.isNaN(parseInt(value, 10))) {
+        return `Value "${value}" is not a valid number`;
+      }
+      return null;
+    case 'DECIMAL':
+      if (Number.isNaN(Number(value)) || value.trim() === '') {
+        return `Value "${value}" is not a valid decimal`;
+      }
+      return null;
+    case 'BOOLEAN': {
+      const lower = value.toLowerCase();
+      if (!['true', 'false', '1', '0', 'yes', 'no'].includes(lower)) {
+        return `Value "${value}" is not a valid boolean (use true/false)`;
+      }
+      return null;
+    }
+    case 'JSON':
+      try {
+        JSON.parse(value);
+        return null;
+      } catch {
+        return `Value "${value}" is not valid JSON`;
+      }
+    case 'STRING':
+    default:
+      return null;
+  }
+}
+
+export const createConfigSchema = z
+  .object({
+    key: z.string().min(1, 'Key is required'),
+    category: z.string().min(1, 'Category is required'),
+    value: z.string().min(1, 'Value is required'),
+    type: z.enum(CONFIG_TYPES, { message: 'Type is required' }),
+    description: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const typeError = getConfigValueTypeError(data.value, data.type);
+    if (typeError) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: typeError,
+        path: ['value'],
+      });
+    }
+  });
 

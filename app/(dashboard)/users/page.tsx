@@ -178,7 +178,6 @@ function UsersPageContent() {
               value={userStats.unverifiedUsers}
               icon={UserCheck}
               footer={`+${userStats.unverifiedUsersLast30Days.toLocaleString()} in 30 days`}
-              href="/users?kycStatus=pending"
             />
             <UsersStatCard
               title="Wallet Activated"
