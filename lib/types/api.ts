@@ -75,8 +75,13 @@ export interface Customer {
   balanceRestrictionReason?: string | null;
   tier1FaceStatus?: Tier1FaceStatus | null;
   tier1AccountStatus?: string | null;
+  tier1CompletedAt?: string | null;
+  tier1AccountCompletedAt?: string | null;
   tier2UpgradeStatus?: TierUpgradeStatus | null;
   tier3UpgradeStatus?: TierUpgradeStatus | null;
+  bvnVerification?: { createdAt: string; verifiedAt?: string } | null;
+  ninVerification?: { createdAt: string; verifiedAt?: string } | null;
+  addressVerification?: { createdAt: string; verifiedAt?: string; verified?: boolean } | null;
   wallets?: Wallet[];
   withdrawalLimit?: WithdrawalLimit;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Download, X, Users, UserCheck, Wallet, Activity } from 'lucide-react';
@@ -35,21 +35,30 @@ function tierBadgeVariant(tier?: KycTier | null): 'info' | 'warning' | 'success'
   return 'success';
 }
 
+function parseKycStatusParam(value: string | null): 'all' | 'pending' | 'completed' {
+  return value === 'pending' || value === 'completed' ? value : 'all';
+}
+
+function parseMismatchParam(value: string | null): 'all' | 'mismatch' | 'in_sync' {
+  if (value === 'true') return 'mismatch';
+  if (value === 'false') return 'in_sync';
+  return 'all';
+}
+
 function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
   const userId = searchParams.get('userId');
   const initialKycStatus = searchParams.get('kycStatus');
   const initialMismatch = searchParams.get('hasMismatch');
 
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState(
-    initialKycStatus === 'pending' || initialKycStatus === 'completed' ? initialKycStatus : 'all',
-  );
-  const [mismatchFilter, setMismatchFilter] = useState(
-    initialMismatch === 'true' ? 'mismatch' : initialMismatch === 'false' ? 'in_sync' : 'all',
-  );
+  const [statusFilter, setStatusFilter] = useState(parseKycStatusParam(initialKycStatus));
+  const [mismatchFilter, setMismatchFilter] = useState(parseMismatchParam(initialMismatch));
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -59,25 +68,35 @@ function UsersPageContent() {
     setPage(1);
   }, [search, tierFilter, statusFilter, mismatchFilter]);
 
+  // URL → filter state (e.g. dashboard link /users?kycStatus=pending)
   useEffect(() => {
-    const kycFromUrl = searchParams.get('kycStatus');
-    const nextStatus =
-      kycFromUrl === 'pending' || kycFromUrl === 'completed' ? kycFromUrl : 'all';
+    const nextStatus = parseKycStatusParam(searchParams.get('kycStatus'));
+    const nextMismatch = parseMismatchParam(searchParams.get('hasMismatch'));
     setStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
+    setMismatchFilter((prev) => (prev === nextMismatch ? prev : nextMismatch));
   }, [searchParams]);
 
+  // Filter state → URL. Do not depend on searchParams (avoids ping-pong with the effect above).
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (statusFilter === 'all') params.delete('kycStatus');
-    else params.set('kycStatus', statusFilter);
-    if (mismatchFilter === 'all') params.delete('hasMismatch');
-    else params.set('hasMismatch', mismatchFilter === 'mismatch' ? 'true' : 'false');
-    const next = params.toString();
-    const current = searchParams.toString();
-    if (next !== current) {
-      router.replace(`/users${next ? `?${next}` : ''}`);
+    const params = new URLSearchParams(searchParamsRef.current.toString());
+    const currentKyc = params.get('kycStatus');
+    const currentMismatch = params.get('hasMismatch');
+    const desiredKyc = statusFilter === 'all' ? null : statusFilter;
+    const desiredMismatch =
+      mismatchFilter === 'all' ? null : mismatchFilter === 'mismatch' ? 'true' : 'false';
+
+    if (currentKyc === desiredKyc && currentMismatch === desiredMismatch) {
+      return;
     }
-  }, [statusFilter, mismatchFilter, router, searchParams]);
+
+    if (desiredKyc) params.set('kycStatus', desiredKyc);
+    else params.delete('kycStatus');
+    if (desiredMismatch) params.set('hasMismatch', desiredMismatch);
+    else params.delete('hasMismatch');
+
+    const next = params.toString();
+    router.replace(`/users${next ? `?${next}` : ''}`);
+  }, [statusFilter, mismatchFilter, router]);
 
   const handleCloseModal = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -86,7 +105,9 @@ function UsersPageContent() {
   };
 
   const handleUserClick = (id: string) => {
-    router.push(`/users?userId=${id}`);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('userId', id);
+    router.push(`/users?${params.toString()}`);
   };
 
   const { data: usersData, isLoading } = useQuery({

@@ -26,7 +26,7 @@ import {
   canSendKycReminder,
   getKycReminderButtonLabel,
 } from '@/lib/utils/kyc';
-import { formatDate } from '@/lib/utils/format';
+import { formatDate, formatDateTimeWAT } from '@/lib/utils/format';
 
 interface UserDetailsModalProps {
   userId: string;
@@ -342,6 +342,11 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
                     </Badge>
                   </div>
                   <p className="text-xs text-gray-500">{tier.description}</p>
+                  {tier.appliedAt && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Applied at: {formatDateTimeWAT(tier.appliedAt)}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

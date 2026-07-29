@@ -20,6 +20,11 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: "Galafy Admin Portal",
   description: "Admin portal for Galafy platform management",
+  icons: {
+    icon: [{ url: "/iconn.png", type: "image/png" }],
+    apple: [{ url: "/iconn.png", type: "image/png" }],
+    shortcut: "/iconn.png",
+  },
 };
 
 export default function RootLayout({

@@ -8,6 +8,37 @@ export interface TierProgressItem {
   label: string;
   description: string;
   status: 'pending' | 'completed';
+  appliedAt?: string | null;
+}
+
+function toAppliedAt(...candidates: Array<string | Date | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    if (candidate == null || candidate === '') continue;
+    return typeof candidate === 'string' ? candidate : candidate.toISOString();
+  }
+  return null;
+}
+
+function getTier1AppliedAt(customer?: Customer | null): string | null {
+  if (!customer) return null;
+  return toAppliedAt(
+    customer.bvnVerification?.createdAt,
+    customer.tier1CompletedAt,
+    customer.tier1AccountCompletedAt,
+  );
+}
+
+function getTier2AppliedAt(customer?: Customer | null): string | null {
+  if (!customer) return null;
+  return toAppliedAt(customer.ninVerification?.createdAt, customer.ninVerification?.verifiedAt);
+}
+
+function getTier3AppliedAt(customer?: Customer | null): string | null {
+  if (!customer) return null;
+  return toAppliedAt(
+    customer.addressVerification?.createdAt,
+    customer.addressVerification?.verifiedAt,
+  );
 }
 
 export function formatTierLabel(tier?: string | null): string {
@@ -84,18 +115,21 @@ export function getTierProgress(customer?: Customer | null): TierProgressItem[] 
       label: 'Tier 1',
       description: 'BVN + face biometric + account callback',
       status: getTier1Status(customer),
+      appliedAt: getTier1AppliedAt(customer),
     },
     {
       tier: 2,
       label: 'Tier 2',
       description: 'NIN + live face verification',
       status: getTier2Status(customer),
+      appliedAt: getTier2AppliedAt(customer),
     },
     {
       tier: 3,
       label: 'Tier 3',
       description: 'Physical address verification',
       status: getTier3Status(customer),
+      appliedAt: getTier3AppliedAt(customer),
     },
   ];
 }
