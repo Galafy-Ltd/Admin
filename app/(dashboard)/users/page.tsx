@@ -247,7 +247,7 @@ function UsersPageContent() {
             { value: 'completed', label: 'Completed' },
           ]}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => setStatusFilter(parseKycStatusParam(e.target.value))}
         />
         <Select
           options={[
@@ -256,7 +256,10 @@ function UsersPageContent() {
             { value: 'in_sync', label: 'In Sync' },
           ]}
           value={mismatchFilter}
-          onChange={(e) => setMismatchFilter(e.target.value)}
+          onChange={(e) => {
+            const value = e.target.value;
+            setMismatchFilter(value === 'mismatch' || value === 'in_sync' ? value : 'all');
+          }}
         />
       </div>
 
