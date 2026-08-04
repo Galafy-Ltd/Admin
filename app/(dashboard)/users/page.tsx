@@ -45,6 +45,39 @@ function parseMismatchParam(value: string | null): 'all' | 'mismatch' | 'in_sync
   return 'all';
 }
 
+type CreatedPreset = 'all' | '7' | '30' | '90' | 'custom';
+
+function toDateInputValue(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function resolveCreatedDateRange(
+  preset: CreatedPreset,
+  customStart: string,
+  customEnd: string,
+): { startDate?: string; endDate?: string } {
+  if (preset === 'all') return {};
+  if (preset === 'custom') {
+    return {
+      startDate: customStart || undefined,
+      endDate: customEnd || undefined,
+    };
+  }
+
+  const days = Number(preset);
+  const end = new Date();
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  start.setHours(0, 0, 0, 0);
+  return {
+    startDate: toDateInputValue(start),
+    endDate: toDateInputValue(end),
+  };
+}
+
 function UsersPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -59,14 +92,22 @@ function UsersPageContent() {
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(parseKycStatusParam(initialKycStatus));
   const [mismatchFilter, setMismatchFilter] = useState(parseMismatchParam(initialMismatch));
+  const [createdPreset, setCreatedPreset] = useState<CreatedPreset>('all');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [page, setPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const limit = 20;
 
+  const createdDateRange = useMemo(
+    () => resolveCreatedDateRange(createdPreset, customStart, customEnd),
+    [createdPreset, customStart, customEnd],
+  );
+
   useEffect(() => {
     setPage(1);
-  }, [search, tierFilter, statusFilter, mismatchFilter]);
+  }, [search, tierFilter, statusFilter, mismatchFilter, createdPreset, customStart, customEnd]);
 
   // URL → filter state (e.g. dashboard link /users?kycStatus=pending)
   useEffect(() => {
@@ -111,7 +152,20 @@ function UsersPageContent() {
   };
 
   const { data: usersData, isLoading } = useQuery({
-    queryKey: ['users', { search, tier: tierFilter, kycStatus: statusFilter, hasMismatch: mismatchFilter, page, limit }],
+    queryKey: [
+      'users',
+      {
+        search,
+        tier: tierFilter,
+        kycStatus: statusFilter,
+        hasMismatch: mismatchFilter,
+        createdPreset,
+        startDate: createdDateRange.startDate,
+        endDate: createdDateRange.endDate,
+        page,
+        limit,
+      },
+    ],
     queryFn: () =>
       usersApi.getUsers({
         search: search || undefined,
@@ -119,6 +173,8 @@ function UsersPageContent() {
         kycStatus: statusFilter !== 'all' ? (statusFilter as 'pending' | 'completed') : undefined,
         hasMismatch:
           mismatchFilter === 'mismatch' ? true : mismatchFilter === 'in_sync' ? false : undefined,
+        startDate: createdDateRange.startDate,
+        endDate: createdDateRange.endDate,
         page,
         limit,
       }),
@@ -133,14 +189,23 @@ function UsersPageContent() {
   const pagination = usersData?.pagination;
 
   const hasActiveFilters = useMemo(() => {
-    return !!(search || tierFilter !== 'all' || statusFilter !== 'all' || mismatchFilter !== 'all');
-  }, [search, tierFilter, statusFilter, mismatchFilter]);
+    return !!(
+      search ||
+      tierFilter !== 'all' ||
+      statusFilter !== 'all' ||
+      mismatchFilter !== 'all' ||
+      createdPreset !== 'all'
+    );
+  }, [search, tierFilter, statusFilter, mismatchFilter, createdPreset]);
 
   const handleClearFilters = () => {
     setSearch('');
     setTierFilter('all');
     setStatusFilter('all');
     setMismatchFilter('all');
+    setCreatedPreset('all');
+    setCustomStart('');
+    setCustomEnd('');
     setPage(1);
   };
 
@@ -154,6 +219,8 @@ function UsersPageContent() {
       if (statusFilter !== 'all') params.kycStatus = statusFilter;
       if (mismatchFilter === 'mismatch') params.hasMismatch = 'true';
       if (mismatchFilter === 'in_sync') params.hasMismatch = 'false';
+      if (createdDateRange.startDate) params.startDate = createdDateRange.startDate;
+      if (createdDateRange.endDate) params.endDate = createdDateRange.endDate;
 
       const blob = await usersApi.exportUsers(params);
       const url = window.URL.createObjectURL(blob);
@@ -216,7 +283,7 @@ function UsersPageContent() {
         )}
       </div>
 
-      <div className="flex gap-4 flex-wrap">
+      <div className="flex gap-4 flex-wrap items-end">
         <div className="flex-1 min-w-[300px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -261,6 +328,40 @@ function UsersPageContent() {
             setMismatchFilter(value === 'mismatch' || value === 'in_sync' ? value : 'all');
           }}
         />
+        <Select
+          options={[
+            { value: 'all', label: 'Created: All time' },
+            { value: '7', label: 'Created: Last 7 days' },
+            { value: '30', label: 'Created: Last 30 days' },
+            { value: '90', label: 'Created: Last 90 days' },
+            { value: 'custom', label: 'Created: Custom' },
+          ]}
+          value={createdPreset}
+          onChange={(e) => {
+            const value = e.target.value;
+            if (value === '7' || value === '30' || value === '90' || value === 'custom') {
+              setCreatedPreset(value);
+            } else {
+              setCreatedPreset('all');
+            }
+          }}
+        />
+        {createdPreset === 'custom' && (
+          <>
+            <Input
+              label="From"
+              type="date"
+              value={customStart}
+              onChange={(e) => setCustomStart(e.target.value)}
+            />
+            <Input
+              label="To"
+              type="date"
+              value={customEnd}
+              onChange={(e) => setCustomEnd(e.target.value)}
+            />
+          </>
+        )}
       </div>
 
       {exportError && (

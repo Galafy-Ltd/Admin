@@ -9,6 +9,8 @@ export interface GetUsersParams {
   kycStatus?: 'pending' | 'completed';
   isAmlRestricted?: boolean;
   hasMismatch?: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
 export const usersApi = {
