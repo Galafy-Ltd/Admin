@@ -39,9 +39,22 @@ function parseKycStatusParam(value: string | null): 'all' | 'pending' | 'complet
   return value === 'pending' || value === 'completed' ? value : 'all';
 }
 
-function parseMismatchParam(value: string | null): 'all' | 'mismatch' | 'in_sync' {
-  if (value === 'true') return 'mismatch';
-  if (value === 'false') return 'in_sync';
+type ReconciliationFilter = 'all' | 'mismatch' | 'in_sync' | 'unavailable';
+
+function parseReconciliationParam(
+  reconciliationStatus: string | null,
+  hasMismatchLegacy: string | null,
+): ReconciliationFilter {
+  if (
+    reconciliationStatus === 'mismatch' ||
+    reconciliationStatus === 'in_sync' ||
+    reconciliationStatus === 'unavailable'
+  ) {
+    return reconciliationStatus;
+  }
+  // Legacy URL support: ?hasMismatch=true|false
+  if (hasMismatchLegacy === 'true') return 'mismatch';
+  if (hasMismatchLegacy === 'false') return 'in_sync';
   return 'all';
 }
 
@@ -86,12 +99,16 @@ function UsersPageContent() {
 
   const userId = searchParams.get('userId');
   const initialKycStatus = searchParams.get('kycStatus');
-  const initialMismatch = searchParams.get('hasMismatch');
+  const initialReconciliation = parseReconciliationParam(
+    searchParams.get('reconciliationStatus'),
+    searchParams.get('hasMismatch'),
+  );
 
   const [search, setSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(parseKycStatusParam(initialKycStatus));
-  const [mismatchFilter, setMismatchFilter] = useState(parseMismatchParam(initialMismatch));
+  const [reconciliationFilter, setReconciliationFilter] =
+    useState<ReconciliationFilter>(initialReconciliation);
   const [createdPreset, setCreatedPreset] = useState<CreatedPreset>('all');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
@@ -107,37 +124,42 @@ function UsersPageContent() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, tierFilter, statusFilter, mismatchFilter, createdPreset, customStart, customEnd]);
+  }, [search, tierFilter, statusFilter, reconciliationFilter, createdPreset, customStart, customEnd]);
 
   // URL → filter state (e.g. dashboard link /users?kycStatus=pending)
   useEffect(() => {
     const nextStatus = parseKycStatusParam(searchParams.get('kycStatus'));
-    const nextMismatch = parseMismatchParam(searchParams.get('hasMismatch'));
+    const nextReconciliation = parseReconciliationParam(
+      searchParams.get('reconciliationStatus'),
+      searchParams.get('hasMismatch'),
+    );
     setStatusFilter((prev) => (prev === nextStatus ? prev : nextStatus));
-    setMismatchFilter((prev) => (prev === nextMismatch ? prev : nextMismatch));
+    setReconciliationFilter((prev) => (prev === nextReconciliation ? prev : nextReconciliation));
   }, [searchParams]);
 
   // Filter state → URL. Do not depend on searchParams (avoids ping-pong with the effect above).
   useEffect(() => {
     const params = new URLSearchParams(searchParamsRef.current.toString());
     const currentKyc = params.get('kycStatus');
-    const currentMismatch = params.get('hasMismatch');
+    const currentRecon = params.get('reconciliationStatus');
     const desiredKyc = statusFilter === 'all' ? null : statusFilter;
-    const desiredMismatch =
-      mismatchFilter === 'all' ? null : mismatchFilter === 'mismatch' ? 'true' : 'false';
+    const desiredRecon = reconciliationFilter === 'all' ? null : reconciliationFilter;
 
-    if (currentKyc === desiredKyc && currentMismatch === desiredMismatch) {
+    // Drop legacy hasMismatch once we own URL state
+    params.delete('hasMismatch');
+
+    if (currentKyc === desiredKyc && currentRecon === desiredRecon) {
       return;
     }
 
     if (desiredKyc) params.set('kycStatus', desiredKyc);
     else params.delete('kycStatus');
-    if (desiredMismatch) params.set('hasMismatch', desiredMismatch);
-    else params.delete('hasMismatch');
+    if (desiredRecon) params.set('reconciliationStatus', desiredRecon);
+    else params.delete('reconciliationStatus');
 
     const next = params.toString();
     router.replace(`/users${next ? `?${next}` : ''}`);
-  }, [statusFilter, mismatchFilter, router]);
+  }, [statusFilter, reconciliationFilter, router]);
 
   const handleCloseModal = () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -158,7 +180,7 @@ function UsersPageContent() {
         search,
         tier: tierFilter,
         kycStatus: statusFilter,
-        hasMismatch: mismatchFilter,
+        reconciliationStatus: reconciliationFilter,
         createdPreset,
         startDate: createdDateRange.startDate,
         endDate: createdDateRange.endDate,
@@ -171,8 +193,10 @@ function UsersPageContent() {
         search: search || undefined,
         tier: tierFilter !== 'all' ? tierFilter : undefined,
         kycStatus: statusFilter !== 'all' ? (statusFilter as 'pending' | 'completed') : undefined,
-        hasMismatch:
-          mismatchFilter === 'mismatch' ? true : mismatchFilter === 'in_sync' ? false : undefined,
+        reconciliationStatus:
+          reconciliationFilter === 'all'
+            ? undefined
+            : (reconciliationFilter as 'in_sync' | 'mismatch' | 'unavailable'),
         startDate: createdDateRange.startDate,
         endDate: createdDateRange.endDate,
         page,
@@ -193,16 +217,16 @@ function UsersPageContent() {
       search ||
       tierFilter !== 'all' ||
       statusFilter !== 'all' ||
-      mismatchFilter !== 'all' ||
+      reconciliationFilter !== 'all' ||
       createdPreset !== 'all'
     );
-  }, [search, tierFilter, statusFilter, mismatchFilter, createdPreset]);
+  }, [search, tierFilter, statusFilter, reconciliationFilter, createdPreset]);
 
   const handleClearFilters = () => {
     setSearch('');
     setTierFilter('all');
     setStatusFilter('all');
-    setMismatchFilter('all');
+    setReconciliationFilter('all');
     setCreatedPreset('all');
     setCustomStart('');
     setCustomEnd('');
@@ -217,8 +241,7 @@ function UsersPageContent() {
       if (search) params.search = search;
       if (tierFilter !== 'all') params.tier = tierFilter;
       if (statusFilter !== 'all') params.kycStatus = statusFilter;
-      if (mismatchFilter === 'mismatch') params.hasMismatch = 'true';
-      if (mismatchFilter === 'in_sync') params.hasMismatch = 'false';
+      if (reconciliationFilter !== 'all') params.reconciliationStatus = reconciliationFilter;
       if (createdDateRange.startDate) params.startDate = createdDateRange.startDate;
       if (createdDateRange.endDate) params.endDate = createdDateRange.endDate;
 
@@ -321,11 +344,14 @@ function UsersPageContent() {
             { value: 'all', label: 'All Reconciliation' },
             { value: 'mismatch', label: 'Mismatch' },
             { value: 'in_sync', label: 'In Sync' },
+            { value: 'unavailable', label: 'Unavailable' },
           ]}
-          value={mismatchFilter}
+          value={reconciliationFilter}
           onChange={(e) => {
             const value = e.target.value;
-            setMismatchFilter(value === 'mismatch' || value === 'in_sync' ? value : 'all');
+            setReconciliationFilter(
+              value === 'mismatch' || value === 'in_sync' || value === 'unavailable' ? value : 'all',
+            );
           }}
         />
         <Select

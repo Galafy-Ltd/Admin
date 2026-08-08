@@ -9,6 +9,7 @@ export interface GetUsersParams {
   kycStatus?: 'pending' | 'completed';
   isAmlRestricted?: boolean;
   hasMismatch?: boolean;
+  reconciliationStatus?: 'in_sync' | 'mismatch' | 'unavailable';
   startDate?: string;
   endDate?: string;
 }

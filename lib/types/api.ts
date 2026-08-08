@@ -68,6 +68,7 @@ export type Tier1FaceStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 export interface Customer {
   id: string;
   tier: KycTier;
+  providerCustomerId?: string | null;
   isAmlRestricted: boolean;
   amlRestrictedAt?: string | null;
   amlRestrictionReason?: string | null;

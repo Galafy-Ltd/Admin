@@ -327,6 +327,18 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
                   <span className="ml-2 text-gray-900">{formatDate(user.createdAt, 'MMMM dd, yyyy')}</span>
                 </div>
               )}
+              <div>
+                <span className="text-gray-500">Account Number:</span>
+                <span className="ml-2 text-gray-900">
+                  {primaryWallet?.virtualAccountNumber || '—'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Provider Customer ID:</span>
+                <span className="ml-2 text-gray-900">
+                  {user.customer?.providerCustomerId || '—'}
+                </span>
+              </div>
             </div>
           </div>
 
