@@ -470,7 +470,7 @@ export function UserDetailsModal({ userId, onClose }: UserDetailsModalProps) {
         isOpen={showReverseModal}
         onClose={() => setShowReverseModal(false)}
         title="Reverse Tier 3 Approval"
-        description="This will downgrade the user to Tier 2 and remove unlimited wallet benefits. Address verification status will not be changed."
+        description="This will remove unlimited wallet benefits and return the user to Tier 3 pending so you can approve the upgrade again. Their address application is kept."
       >
         <div className="flex justify-end gap-3">
           <Button variant="outline" onClick={() => setShowReverseModal(false)}>
