@@ -72,35 +72,46 @@ export function LiveLeaderboardPage() {
     setActivity(snapshot.recentActivity || []);
   }, []);
 
-  const onSpray = useCallback((payload: {
-    stats: { totalSprayed: string | null; giversCount?: number };
-    activity: PublicActivityItem;
-    showAmounts: boolean;
-  }) => {
-    setData((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        showAmounts: payload.showAmounts,
-        stats: {
-          totalSprayed:
-            payload.stats.totalSprayed !== undefined
-              ? payload.stats.totalSprayed
-              : prev.stats.totalSprayed,
-          giversCount:
-            payload.stats.giversCount !== undefined
-              ? payload.stats.giversCount
-              : prev.stats.giversCount,
-        },
-      };
-    });
-    setActivity((prev) => [payload.activity, ...prev].slice(0, 30));
-  }, []);
+  const onSpray = useCallback(
+    (payload: {
+      stats: { totalSprayed: string | null; giversCount?: number | null };
+      activity: PublicActivityItem | null;
+      showAmounts: boolean;
+      privacy?: PublicLeaderboardSnapshot['privacy'];
+    }) => {
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          showAmounts: payload.showAmounts,
+          privacy: payload.privacy ?? prev.privacy,
+          stats: {
+            totalSprayed:
+              payload.stats.totalSprayed !== undefined
+                ? payload.stats.totalSprayed
+                : prev.stats.totalSprayed,
+            giversCount:
+              payload.stats.giversCount !== undefined
+                ? payload.stats.giversCount
+                : prev.stats.giversCount,
+          },
+        };
+      });
+      if (payload.activity) {
+        setActivity((prev) => [payload.activity as PublicActivityItem, ...prev].slice(0, 30));
+      }
+    },
+    [],
+  );
 
   usePublicLive(token, {
     onJoined,
     onLeaderboard,
     onSpray,
+    onRevoked: (message) => {
+      setData(null);
+      setError(message);
+    },
     onError: (message) => {
       if (!data) setError(message);
     },
@@ -126,6 +137,17 @@ export function LiveLeaderboardPage() {
   }
 
   const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
+  const privacy = data.privacy ?? {
+    showNames: true,
+    showAmounts: data.showAmounts,
+    showTotalAmount: data.showAmounts,
+    showParticipantCount: true,
+    allowAnonymous: true,
+    topN: null,
+  };
+  const showRowAmounts = privacy.showAmounts;
+  const showTotal = privacy.showTotalAmount;
+  const showGivers = privacy.showParticipantCount;
 
   return (
     <div className="page">
@@ -140,18 +162,22 @@ export function LiveLeaderboardPage() {
           <div className="hero-kicker">{isLive ? 'Event live' : 'Event'}</div>
           <h1>{data.event.title}</h1>
           <p style={{ margin: 0, opacity: 0.85 }}>{formatEventDate(data.event.startsAt)}</p>
-          <div className="stats">
-            <div className="stat-card">
-              <span>Total sprayed</span>
-              <strong>
-                {data.showAmounts ? formatNaira(data.stats.totalSprayed) : 'Hidden'}
-              </strong>
+          {(showTotal || showGivers) && (
+            <div className="stats">
+              {showTotal ? (
+                <div className="stat-card">
+                  <span>Total sprayed</span>
+                  <strong>{formatNaira(data.stats.totalSprayed)}</strong>
+                </div>
+              ) : null}
+              {showGivers ? (
+                <div className="stat-card">
+                  <span>Givers</span>
+                  <strong>{(data.stats.giversCount ?? 0).toLocaleString()}</strong>
+                </div>
+              ) : null}
             </div>
-            <div className="stat-card">
-              <span>Givers</span>
-              <strong>{data.stats.giversCount.toLocaleString()}</strong>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -168,7 +194,7 @@ export function LiveLeaderboardPage() {
                   <div className="rank-badge">{entry.rank}</div>
                   <Avatar name={entry.displayName} src={entry.profilePicture} />
                   <h3>{entry.displayName}</h3>
-                  {data.showAmounts && entry.totalAmount != null ? (
+                  {showRowAmounts && entry.totalAmount != null ? (
                     <div className="amount">{formatNaira(entry.totalAmount)}</div>
                   ) : (
                     <div className="amount">#{entry.rank}</div>
@@ -193,7 +219,7 @@ export function LiveLeaderboardPage() {
                   <span>{entry.displayName}</span>
                 </div>
                 <div>
-                  {data.showAmounts && entry.totalAmount != null
+                  {showRowAmounts && entry.totalAmount != null
                     ? formatNaira(entry.totalAmount)
                     : `#${entry.rank}`}
                 </div>
@@ -243,7 +269,7 @@ export function LiveLeaderboardPage() {
                   ) : (
                     <>
                       just sprayed{' '}
-                      {data.showAmounts && item.amount != null ? (
+                      {showRowAmounts && item.amount != null ? (
                         <span className="amount">{formatNaira(item.amount)}</span>
                       ) : (
                         <span className="amount">on the board</span>
