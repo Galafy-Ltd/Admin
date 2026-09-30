@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
-    "start": "next start -p 3001"
+    "start": "next start -p 3001",
+    "dev:leaderboard": "npm --prefix public-leaderboard run dev",
+    "build:leaderboard": "npm --prefix public-leaderboard run build",
+    "preview:leaderboard": "npm --prefix public-leaderboard run preview"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",
