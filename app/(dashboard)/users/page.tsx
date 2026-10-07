@@ -105,6 +105,7 @@ function UsersPageContent() {
   );
 
   const [search, setSearch] = useState('');
+  const [accountNumberSearch, setAccountNumberSearch] = useState('');
   const [tierFilter, setTierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState(parseKycStatusParam(initialKycStatus));
   const [reconciliationFilter, setReconciliationFilter] =
@@ -124,7 +125,16 @@ function UsersPageContent() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, tierFilter, statusFilter, reconciliationFilter, createdPreset, customStart, customEnd]);
+  }, [
+    search,
+    accountNumberSearch,
+    tierFilter,
+    statusFilter,
+    reconciliationFilter,
+    createdPreset,
+    customStart,
+    customEnd,
+  ]);
 
   // URL → filter state (e.g. dashboard link /users?kycStatus=pending)
   useEffect(() => {
@@ -178,6 +188,7 @@ function UsersPageContent() {
       'users',
       {
         search,
+        accountNumber: accountNumberSearch,
         tier: tierFilter,
         kycStatus: statusFilter,
         reconciliationStatus: reconciliationFilter,
@@ -191,6 +202,7 @@ function UsersPageContent() {
     queryFn: () =>
       usersApi.getUsers({
         search: search || undefined,
+        accountNumber: accountNumberSearch.trim() || undefined,
         tier: tierFilter !== 'all' ? tierFilter : undefined,
         kycStatus: statusFilter !== 'all' ? (statusFilter as 'pending' | 'completed') : undefined,
         reconciliationStatus:
@@ -215,15 +227,17 @@ function UsersPageContent() {
   const hasActiveFilters = useMemo(() => {
     return !!(
       search ||
+      accountNumberSearch.trim() ||
       tierFilter !== 'all' ||
       statusFilter !== 'all' ||
       reconciliationFilter !== 'all' ||
       createdPreset !== 'all'
     );
-  }, [search, tierFilter, statusFilter, reconciliationFilter, createdPreset]);
+  }, [search, accountNumberSearch, tierFilter, statusFilter, reconciliationFilter, createdPreset]);
 
   const handleClearFilters = () => {
     setSearch('');
+    setAccountNumberSearch('');
     setTierFilter('all');
     setStatusFilter('all');
     setReconciliationFilter('all');
@@ -239,6 +253,7 @@ function UsersPageContent() {
     try {
       const params: Record<string, string> = {};
       if (search) params.search = search;
+      if (accountNumberSearch.trim()) params.accountNumber = accountNumberSearch.trim();
       if (tierFilter !== 'all') params.tier = tierFilter;
       if (statusFilter !== 'all') params.kycStatus = statusFilter;
       if (reconciliationFilter !== 'all') params.reconciliationStatus = reconciliationFilter;
@@ -307,7 +322,7 @@ function UsersPageContent() {
       </div>
 
       <div className="flex gap-4 flex-wrap items-end">
-        <div className="flex-1 min-w-[300px]">
+        <div className="flex-1 min-w-[240px]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
@@ -317,6 +332,13 @@ function UsersPageContent() {
               className="pl-10"
             />
           </div>
+        </div>
+        <div className="min-w-[220px]">
+          <Input
+            placeholder="Search by account number..."
+            value={accountNumberSearch}
+            onChange={(e) => setAccountNumberSearch(e.target.value)}
+          />
         </div>
         <Select
           options={[

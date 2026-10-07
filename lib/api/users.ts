@@ -5,6 +5,7 @@ export interface GetUsersParams {
   page?: number;
   limit?: number;
   search?: string;
+  accountNumber?: string;
   tier?: string;
   kycStatus?: 'pending' | 'completed';
   isAmlRestricted?: boolean;

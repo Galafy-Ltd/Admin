@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { fetchPublicLeaderboard } from './api';
+import { DownloadQr } from './DownloadQr';
 import { formatEventDate, formatNaira, relativeTime } from './format';
 import type { PublicActivityItem, PublicLeaderboardSnapshot } from './types';
 import { usePublicLive } from './usePublicLive';
 
-const DOWNLOAD_URL = import.meta.env.VITE_APP_DOWNLOAD_URL || 'https://galafy.com/download';
+const DOWNLOAD_URL = import.meta.env.VITE_APP_DOWNLOAD_URL || 'https://galafy.co/#download';
 
 function Avatar({
   name,
@@ -151,17 +152,28 @@ export function LiveLeaderboardPage() {
 
   return (
     <div className="page">
-      <header className="topbar">
-        <div className="brand">Galafy</div>
-        {isLive ? <div className="live-pill">LIVE</div> : <div className="section-head"><p>{data.event.status}</p></div>}
-      </header>
+      <div className="hero-band">
+        <div className="hero-band-inner">
+          <header className="topbar">
+            <div className="brand">Galafy</div>
+            {isLive ? (
+              <div className="live-pill">LIVE</div>
+            ) : (
+              <div className="section-head">
+                <p style={{ color: 'rgba(255,255,255,0.75)' }}>{data.event.status}</p>
+              </div>
+            )}
+          </header>
 
-      <section className="hero">
-        {data.event.imageUrl ? <img src={data.event.imageUrl} alt="" /> : null}
-        <div className="hero-overlay">
-          <div className="hero-kicker">{isLive ? 'Event live' : 'Event'}</div>
-          <h1>{data.event.title}</h1>
-          <p style={{ margin: 0, opacity: 0.85 }}>{formatEventDate(data.event.startsAt)}</p>
+          <section className="hero">
+            {data.event.imageUrl ? <img src={data.event.imageUrl} alt="" /> : null}
+            <div className="hero-overlay">
+              <div className="hero-kicker">{isLive ? 'Event live' : 'Event'}</div>
+              <h1>{data.event.title}</h1>
+              <p className="hero-date">{formatEventDate(data.event.startsAt)}</p>
+            </div>
+          </section>
+
           {(showTotal || showGivers) && (
             <div className="stats">
               {showTotal ? (
@@ -171,7 +183,7 @@ export function LiveLeaderboardPage() {
                 </div>
               ) : null}
               {showGivers ? (
-                <div className="stat-card">
+                <div className="stat-card givers">
                   <span>Givers</span>
                   <strong>{(data.stats.giversCount ?? 0).toLocaleString()}</strong>
                 </div>
@@ -179,126 +191,128 @@ export function LiveLeaderboardPage() {
             </div>
           )}
         </div>
-      </section>
+      </div>
 
-      <section className="section">
-        <div className="section-head">
-          <h2>Top contributors</h2>
-          <p>Updated live</p>
-        </div>
-        {top3.length > 0 ? (
-          <div className="podium">
-            {podiumOrder.map((entry) =>
-              entry ? (
-                <div key={entry.rank} className={`podium-card rank-${entry.rank}`}>
-                  <div className="rank-badge">{entry.rank}</div>
-                  <Avatar name={entry.displayName} src={entry.profilePicture} />
-                  <h3>{entry.displayName}</h3>
-                  {showRowAmounts && entry.totalAmount != null ? (
-                    <div className="amount">{formatNaira(entry.totalAmount)}</div>
-                  ) : (
-                    <div className="amount">#{entry.rank}</div>
-                  )}
-                </div>
-              ) : null,
-            )}
+      <div className="content">
+        <section className="section">
+          <div className="section-head">
+            <h2>Top contributors</h2>
+            <p>Updated live</p>
           </div>
-        ) : (
-          <div className="list-card">
-            <div className="list-row">No sprays yet — be the first.</div>
-          </div>
-        )}
-
-        {rest.length > 0 ? (
-          <div className="list-card">
-            {rest.map((entry) => (
-              <div key={entry.rank} className="list-row">
-                <div className="rank">{entry.rank}</div>
-                <div className="who">
-                  <Avatar name={entry.displayName} src={entry.profilePicture} />
-                  <span>{entry.displayName}</span>
-                </div>
-                <div>
-                  {showRowAmounts && entry.totalAmount != null
-                    ? formatNaira(entry.totalAmount)
-                    : `#${entry.rank}`}
-                </div>
-              </div>
-            ))}
-            {data.leaderboard.length > 8 && (
-              <button
-                type="button"
-                className="list-row"
-                style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  color: 'var(--navy)',
-                  fontWeight: 600,
-                  justifyContent: 'center',
-                }}
-                onClick={() => setExpanded((v) => !v)}
-              >
-                {expanded ? 'Show less' : 'View full leaderboard'}
-              </button>
-            )}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="section">
-        <div className="section-head">
-          <h2>Live activity</h2>
-          <div className="stream-pill">Streaming</div>
-        </div>
-        <div className="activity-card">
-          {activity.length === 0 ? (
-            <div className="activity-row">
-              <span>Waiting for the first spray…</span>
+          {top3.length > 0 ? (
+            <div className="podium">
+              {podiumOrder.map((entry) =>
+                entry ? (
+                  <div key={entry.rank} className={`podium-card rank-${entry.rank}`}>
+                    <div className="rank-badge">{entry.rank}</div>
+                    <Avatar name={entry.displayName} src={entry.profilePicture} />
+                    <h3>{entry.displayName}</h3>
+                    {showRowAmounts && entry.totalAmount != null ? (
+                      <div className="amount">{formatNaira(entry.totalAmount)}</div>
+                    ) : (
+                      <div className="amount">#{entry.rank}</div>
+                    )}
+                  </div>
+                ) : null,
+              )}
             </div>
           ) : (
-            activity.slice(0, 12).map((item, idx) => (
-              <div key={`${item.createdAt}-${idx}`} className="activity-row">
-                <div>
-                  <strong>{item.displayName}</strong>{' '}
-                  {item.type === 'rank_up' ? (
-                    <>
-                      moved up to <strong>#{item.rank}</strong>
-                    </>
-                  ) : (
-                    <>
-                      just sprayed{' '}
-                      {showRowAmounts && item.amount != null ? (
-                        <span className="amount">{formatNaira(item.amount)}</span>
-                      ) : (
-                        <span className="amount">on the board</span>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className="meta">{relativeTime(item.createdAt)}</div>
-              </div>
-            ))
+            <div className="list-card">
+              <div className="list-row">No sprays yet — be the first.</div>
+            </div>
           )}
-        </div>
-      </section>
 
-      <section className="cta">
-        <div>
-          <h2>Be part of the celebration</h2>
-          <p>Experience digital spraying built for the culture.</p>
-          <a className="cta-btn" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
-            Join Galafy
-          </a>
-        </div>
-        <div className="qr-box">
-          <div className="qr-placeholder" aria-hidden />
-          <small>Scan to Download Galafy App</small>
-        </div>
-      </section>
+          {rest.length > 0 ? (
+            <div className="list-card">
+              {rest.map((entry) => (
+                <div key={entry.rank} className="list-row">
+                  <div className="rank">{entry.rank}</div>
+                  <div className="who">
+                    <Avatar name={entry.displayName} src={entry.profilePicture} />
+                    <span>{entry.displayName}</span>
+                  </div>
+                  <div>
+                    {showRowAmounts && entry.totalAmount != null
+                      ? formatNaira(entry.totalAmount)
+                      : `#${entry.rank}`}
+                  </div>
+                </div>
+              ))}
+              {data.leaderboard.length > 8 && (
+                <button
+                  type="button"
+                  className="list-row"
+                  style={{
+                    width: '100%',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    color: 'var(--navy)',
+                    fontWeight: 600,
+                    justifyContent: 'center',
+                  }}
+                  onClick={() => setExpanded((v) => !v)}
+                >
+                  {expanded ? 'Show less' : 'View full leaderboard'}
+                </button>
+              )}
+            </div>
+          ) : null}
+        </section>
 
-      <footer className="footer">© {new Date().getFullYear()} Galafy. All rights reserved.</footer>
+        <section className="section">
+          <div className="section-head">
+            <h2>Live activity</h2>
+            <div className="stream-pill">Streaming</div>
+          </div>
+          <div className="activity-card">
+            {activity.length === 0 ? (
+              <div className="activity-row">
+                <span>Waiting for the first spray…</span>
+              </div>
+            ) : (
+              activity.slice(0, 12).map((item, idx) => (
+                <div key={`${item.createdAt}-${idx}`} className="activity-row">
+                  <div>
+                    <strong>{item.displayName}</strong>{' '}
+                    {item.type === 'rank_up' ? (
+                      <>
+                        moved up to <strong>#{item.rank}</strong>
+                      </>
+                    ) : (
+                      <>
+                        just sprayed{' '}
+                        {showRowAmounts && item.amount != null ? (
+                          <span className="amount">{formatNaira(item.amount)}</span>
+                        ) : (
+                          <span className="amount">on the board</span>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  <div className="meta">{relativeTime(item.createdAt)}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        <section className="cta">
+          <div>
+            <h2>Be part of the celebration</h2>
+            <p>Experience digital spraying built for the culture.</p>
+            <a className="cta-btn" href={DOWNLOAD_URL} target="_blank" rel="noreferrer">
+              Join Galafy
+            </a>
+          </div>
+          <div className="qr-box">
+            <DownloadQr url={DOWNLOAD_URL} />
+            <small>Scan to Download Galafy App</small>
+          </div>
+        </section>
+
+        <footer className="footer">© {new Date().getFullYear()} Galafy. All rights reserved.</footer>
+      </div>
     </div>
   );
 }
