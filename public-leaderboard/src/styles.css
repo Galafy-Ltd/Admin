@@ -306,6 +306,14 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.list-row--empty {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  color: var(--muted);
+  padding: 28px 16px;
+}
+
 .list-row:last-child {
   border-bottom: none;
 }

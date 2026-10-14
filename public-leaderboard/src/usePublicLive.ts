@@ -14,12 +14,20 @@ type Handlers = {
   onError?: (message: string) => void;
 };
 
-export function usePublicLive(token: string | undefined, handlers: Handlers) {
+/**
+ * Connect to public live updates only when `enabled` is true (event is LIVE).
+ * Historical data should come from REST regardless.
+ */
+export function usePublicLive(
+  token: string | undefined,
+  handlers: Handlers,
+  enabled = true,
+) {
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !enabled) return;
 
     const socket: Socket = io(`${SOCKET_URL}/live`, {
       transports: ['websocket', 'polling'],
@@ -51,5 +59,5 @@ export function usePublicLive(token: string | undefined, handlers: Handlers) {
     return () => {
       socket.disconnect();
     };
-  }, [token]);
+  }, [token, enabled]);
 }

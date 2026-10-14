@@ -91,39 +91,56 @@ export function LiveLeaderboardPage() {
               payload.stats.totalSprayed !== undefined
                 ? payload.stats.totalSprayed
                 : prev.stats.totalSprayed,
+            // Only overwrite when the field is present (including intentional null).
             giversCount:
-              payload.stats.giversCount !== undefined
-                ? payload.stats.giversCount
+              'giversCount' in (payload.stats ?? {})
+                ? payload.stats.giversCount ?? null
                 : prev.stats.giversCount,
           },
         };
       });
       if (payload.activity) {
-        setActivity((prev) => [payload.activity as PublicActivityItem, ...prev].slice(0, 30));
+        const next = payload.activity;
+        setActivity((prev) => {
+          const duplicate = prev.some(
+            (item) =>
+              item.createdAt === next.createdAt &&
+              item.displayName === next.displayName &&
+              item.amount === next.amount &&
+              item.type === next.type,
+          );
+          if (duplicate) return prev;
+          return [next, ...prev].slice(0, 30);
+        });
       }
     },
     [],
   );
 
-  usePublicLive(token, {
-    onJoined,
-    onLeaderboard,
-    onSpray,
-    onRevoked: (message) => {
-      setData(null);
-      setError(message);
+  const isLive = data?.event.status === 'LIVE';
+
+  usePublicLive(
+    token,
+    {
+      onJoined,
+      onLeaderboard,
+      onSpray,
+      onRevoked: (message) => {
+        setData(null);
+        setError(message);
+      },
+      onError: (message) => {
+        if (!data) setError(message);
+      },
     },
-    onError: (message) => {
-      if (!data) setError(message);
-    },
-  });
+    Boolean(isLive),
+  );
 
   const top3 = useMemo(() => data?.leaderboard.slice(0, 3) || [], [data]);
   const rest = useMemo(() => {
     const rows = data?.leaderboard.slice(3) || [];
     return expanded ? rows : rows.slice(0, 5);
   }, [data, expanded]);
-  const isLive = data?.event.status === 'LIVE';
 
   if (loading && !data) {
     return <div className="state">Loading live leaderboard…</div>;
@@ -218,7 +235,7 @@ export function LiveLeaderboardPage() {
             </div>
           ) : (
             <div className="list-card">
-              <div className="list-row">No sprays yet — be the first.</div>
+              <div className="list-row list-row--empty">No sprays yet — be the first.</div>
             </div>
           )}
 
@@ -262,13 +279,13 @@ export function LiveLeaderboardPage() {
 
         <section className="section">
           <div className="section-head">
-            <h2>Live activity</h2>
-            <div className="stream-pill">Streaming</div>
+            <h2>{isLive ? 'Live activity' : 'Activity'}</h2>
+            {isLive ? <div className="stream-pill">Streaming</div> : null}
           </div>
           <div className="activity-card">
             {activity.length === 0 ? (
               <div className="activity-row">
-                <span>Waiting for the first spray…</span>
+                <span>{isLive ? 'Waiting for the first spray…' : 'No sprays yet.'}</span>
               </div>
             ) : (
               activity.slice(0, 12).map((item, idx) => (
@@ -281,7 +298,7 @@ export function LiveLeaderboardPage() {
                       </>
                     ) : (
                       <>
-                        just sprayed{' '}
+                        {isLive ? 'just sprayed' : 'sprayed'}{' '}
                         {showRowAmounts && item.amount != null ? (
                           <span className="amount">{formatNaira(item.amount)}</span>
                         ) : (
