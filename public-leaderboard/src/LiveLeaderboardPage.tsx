@@ -158,8 +158,10 @@ export function LiveLeaderboardPage() {
   );
 
   const top3 = useMemo(() => data?.leaderboard.slice(0, 3) || [], [data]);
-  const rest = useMemo(() => {
-    const rows = data?.leaderboard.slice(3) || [];
+  /** ≤3 sprayers: full list in Leaderboard; >3: ranks 4+ only (podium covers 1–3). */
+  const listRows = useMemo(() => {
+    const board = data?.leaderboard || [];
+    const rows = board.length <= 3 ? board : board.slice(3);
     return expanded ? rows : rows.slice(0, 5);
   }, [data, expanded]);
 
@@ -262,9 +264,9 @@ export function LiveLeaderboardPage() {
             <h2>Leaderboard</h2>
             <p>Updated live</p>
           </div>
-          {rest.length > 0 ? (
+          {listRows.length > 0 ? (
             <div className="list-card">
-              {rest.map((entry) => (
+              {listRows.map((entry) => (
                 <div key={entry.rank} className="list-row">
                   <div className="rank">{entry.rank}</div>
                   <div className="who">
