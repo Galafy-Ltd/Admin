@@ -7,6 +7,7 @@ import type { PublicActivityItem, PublicLeaderboardSnapshot } from './types';
 import { usePublicLive } from './usePublicLive';
 
 const DOWNLOAD_URL = import.meta.env.VITE_APP_DOWNLOAD_URL || 'https://galafy.co/#download';
+const MASKED_AMOUNT = '****';
 
 function Avatar({
   name,
@@ -31,6 +32,20 @@ function Avatar({
   );
 }
 
+/** Show amounts → ₦; Ranking only → ****; missing value while showAmounts → — */
+function formatAmountDisplay(
+  showAmounts: boolean,
+  value: string | number | null | undefined,
+): string {
+  if (!showAmounts) return MASKED_AMOUNT;
+  if (value == null || value === '') return '—';
+  return formatNaira(value);
+}
+
+function isEventLive(snapshot: PublicLeaderboardSnapshot | null | undefined): boolean {
+  return snapshot?.event.status === 'LIVE';
+}
+
 export function LiveLeaderboardPage() {
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<PublicLeaderboardSnapshot | null>(null);
@@ -47,7 +62,8 @@ export function LiveLeaderboardPage() {
       .then((snapshot) => {
         if (cancelled) return;
         setData(snapshot);
-        setActivity(snapshot.recentActivity || []);
+        // Live activity is LIVE-only; do not bind historical REST activity when not live.
+        setActivity(isEventLive(snapshot) ? snapshot.recentActivity || [] : []);
         setError(null);
       })
       .catch((err: Error) => {
@@ -63,14 +79,18 @@ export function LiveLeaderboardPage() {
 
   const onJoined = useCallback((snapshot: PublicLeaderboardSnapshot) => {
     setData(snapshot);
-    setActivity(snapshot.recentActivity || []);
+    setActivity(isEventLive(snapshot) ? snapshot.recentActivity || [] : []);
     setLoading(false);
     setError(null);
   }, []);
 
   const onLeaderboard = useCallback((snapshot: PublicLeaderboardSnapshot) => {
     setData(snapshot);
-    setActivity(snapshot.recentActivity || []);
+    if (isEventLive(snapshot)) {
+      setActivity(snapshot.recentActivity || []);
+    } else {
+      setActivity([]);
+    }
   }, []);
 
   const onSpray = useCallback(
@@ -91,7 +111,6 @@ export function LiveLeaderboardPage() {
               payload.stats.totalSprayed !== undefined
                 ? payload.stats.totalSprayed
                 : prev.stats.totalSprayed,
-            // Only overwrite when the field is present (including intentional null).
             giversCount:
               'giversCount' in (payload.stats ?? {})
                 ? payload.stats.giversCount ?? null
@@ -99,6 +118,7 @@ export function LiveLeaderboardPage() {
           },
         };
       });
+      // Socket sprays only apply while the event is live (hook is gated on isLive).
       if (payload.activity) {
         const next = payload.activity;
         setActivity((prev) => {
@@ -117,7 +137,7 @@ export function LiveLeaderboardPage() {
     [],
   );
 
-  const isLive = data?.event.status === 'LIVE';
+  const isLive = isEventLive(data);
 
   usePublicLive(
     token,
@@ -127,6 +147,7 @@ export function LiveLeaderboardPage() {
       onSpray,
       onRevoked: (message) => {
         setData(null);
+        setActivity([]);
         setError(message);
       },
       onError: (message) => {
@@ -211,11 +232,8 @@ export function LiveLeaderboardPage() {
       </div>
 
       <div className="content">
+        {/* Section A: podium — no section title (per design) */}
         <section className="section">
-          <div className="section-head">
-            <h2>Top contributors</h2>
-            <p>Updated live</p>
-          </div>
           {top3.length > 0 ? (
             <div className="podium">
               {podiumOrder.map((entry) =>
@@ -224,11 +242,9 @@ export function LiveLeaderboardPage() {
                     <div className="rank-badge">{entry.rank}</div>
                     <Avatar name={entry.displayName} src={entry.profilePicture} />
                     <h3>{entry.displayName}</h3>
-                    {showRowAmounts && entry.totalAmount != null ? (
-                      <div className="amount">{formatNaira(entry.totalAmount)}</div>
-                    ) : (
-                      <div className="amount">#{entry.rank}</div>
-                    )}
+                    <div className={`amount${showRowAmounts ? '' : ' amount--masked'}`}>
+                      {formatAmountDisplay(showRowAmounts, entry.totalAmount)}
+                    </div>
                   </div>
                 ) : null,
               )}
@@ -238,7 +254,14 @@ export function LiveLeaderboardPage() {
               <div className="list-row list-row--empty">No sprays yet — be the first.</div>
             </div>
           )}
+        </section>
 
+        {/* Section B: Leaderboard list (always from snapshot / REST) */}
+        <section className="section">
+          <div className="section-head">
+            <h2>Leaderboard</h2>
+            <p>Updated live</p>
+          </div>
           {rest.length > 0 ? (
             <div className="list-card">
               {rest.map((entry) => (
@@ -248,26 +271,15 @@ export function LiveLeaderboardPage() {
                     <Avatar name={entry.displayName} src={entry.profilePicture} />
                     <span>{entry.displayName}</span>
                   </div>
-                  <div>
-                    {showRowAmounts && entry.totalAmount != null
-                      ? formatNaira(entry.totalAmount)
-                      : `#${entry.rank}`}
+                  <div className={showRowAmounts ? '' : 'amount--masked'}>
+                    {formatAmountDisplay(showRowAmounts, entry.totalAmount)}
                   </div>
                 </div>
               ))}
               {data.leaderboard.length > 8 && (
                 <button
                   type="button"
-                  className="list-row"
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    color: 'var(--navy)',
-                    fontWeight: 600,
-                    justifyContent: 'center',
-                  }}
+                  className="list-row list-row--expand"
                   onClick={() => setExpanded((v) => !v)}
                 >
                   {expanded ? 'Show less' : 'View full leaderboard'}
@@ -277,15 +289,20 @@ export function LiveLeaderboardPage() {
           ) : null}
         </section>
 
+        {/* Section C: Live activity — LIVE only */}
         <section className="section">
           <div className="section-head">
-            <h2>{isLive ? 'Live activity' : 'Activity'}</h2>
+            <h2>Live activity</h2>
             {isLive ? <div className="stream-pill">Streaming</div> : null}
           </div>
           <div className="activity-card">
-            {activity.length === 0 ? (
+            {!isLive ? (
               <div className="activity-row">
-                <span>{isLive ? 'Waiting for the first spray…' : 'No sprays yet.'}</span>
+                <span>Live activity is available when the event is live.</span>
+              </div>
+            ) : activity.length === 0 ? (
+              <div className="activity-row">
+                <span>Waiting for the first spray…</span>
               </div>
             ) : (
               activity.slice(0, 12).map((item, idx) => (
@@ -298,12 +315,10 @@ export function LiveLeaderboardPage() {
                       </>
                     ) : (
                       <>
-                        {isLive ? 'just sprayed' : 'sprayed'}{' '}
-                        {showRowAmounts && item.amount != null ? (
-                          <span className="amount">{formatNaira(item.amount)}</span>
-                        ) : (
-                          <span className="amount">on the board</span>
-                        )}
+                        just sprayed{' '}
+                        <span className={`amount${showRowAmounts ? '' : ' amount--masked'}`}>
+                          {formatAmountDisplay(showRowAmounts, item.amount)}
+                        </span>
                       </>
                     )}
                   </div>
