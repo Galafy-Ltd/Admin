@@ -17,9 +17,25 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // If accessing login page while authenticated, redirect to dashboard
+  // If accessing login page while authenticated, honor safe ?next= or dashboard
   if (pathname === '/login' && token) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const next = request.nextUrl.searchParams.get('next');
+    let destination = '/dashboard';
+    if (next) {
+      try {
+        const decoded = decodeURIComponent(next);
+        if (
+          decoded.startsWith('/') &&
+          !decoded.startsWith('//') &&
+          !decoded.includes('://')
+        ) {
+          destination = decoded;
+        }
+      } catch {
+        /* keep dashboard */
+      }
+    }
+    return NextResponse.redirect(new URL(destination, request.url));
   }
 
   return NextResponse.next();

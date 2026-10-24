@@ -10,7 +10,15 @@ import {
   AUTH_SESSION_NOTICE_STORAGE_KEY,
   AUTH_SESSION_NOTICE_IDLE,
   ADMIN_IDLE_TIMEOUT_MS,
+  buildLoginHref,
+  getCurrentReturnToPath,
+  resolvePostLoginPath,
 } from '@/lib/utils/auth';
+
+interface LogoutOptions {
+  /** When set (e.g. idle timeout), redirect to login with this return path. */
+  returnTo?: string | null;
+}
 
 interface AuthContextType {
   admin: Admin | null;
@@ -18,7 +26,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (data: LoginRequest) => Promise<LoginResponse>;
   completeTwoFactorLogin: (tempToken: string, code: string) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: LogoutOptions) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -66,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setAdmin(data.admin);
     persistAdminSession(data.admin);
     queryClient.setQueryData(['admin'], data.admin);
-    router.push('/dashboard');
+    router.push(resolvePostLoginPath());
   };
 
   const loginMutation = useMutation({
@@ -85,11 +93,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => authApi.logout(),
-    onSuccess: () => {
+    mutationFn: async (options?: LogoutOptions) => {
+      await authApi.logout();
+      return options;
+    },
+    onSuccess: (options) => {
       setAdmin(null);
       queryClient.clear();
-      router.push('/login');
+      router.push(
+        options?.returnTo !== undefined
+          ? buildLoginHref(options.returnTo)
+          : '/login',
+      );
     },
   });
 
@@ -99,9 +114,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await verifyTwoFactorMutation.mutateAsync({ tempToken, code });
   };
 
-  const logout = useCallback(async () => {
-    await logoutMutation.mutateAsync();
-  }, [logoutMutation.mutateAsync]);
+  const logout = useCallback(
+    async (options?: LogoutOptions) => {
+      await logoutMutation.mutateAsync(options);
+    },
+    [logoutMutation.mutateAsync],
+  );
 
   const logoutRef = useRef(logout);
   logoutRef.current = logout;
@@ -116,17 +134,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const handleIdleTimeout = useCallback(async () => {
     if (loggingOutForIdleRef.current) return;
     loggingOutForIdleRef.current = true;
+    const returnTo = getCurrentReturnToPath();
     try {
       sessionStorage.setItem(AUTH_SESSION_NOTICE_STORAGE_KEY, AUTH_SESSION_NOTICE_IDLE);
     } catch {
       /* ignore */
     }
     try {
-      await logoutRef.current();
+      await logoutRef.current({ returnTo });
     } catch {
       setAdmin(null);
       queryClient.clear();
-      router.push('/login');
+      router.push(buildLoginHref(returnTo));
     } finally {
       loggingOutForIdleRef.current = false;
     }

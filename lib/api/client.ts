@@ -3,6 +3,8 @@ import {
   clearLocalAuthSession,
   AUTH_SESSION_NOTICE_STORAGE_KEY,
   AUTH_SESSION_NOTICE_EXPIRED,
+  buildLoginHref,
+  getCurrentReturnToPath,
 } from '@/lib/utils/auth';
 
 // Base URL includes /api prefix as the server routes are under /api/admin/...
@@ -18,7 +20,7 @@ function redirectToLoginSessionExpired() {
   } catch {
     /* ignore */
   }
-  window.location.assign('/login');
+  window.location.assign(buildLoginHref(getCurrentReturnToPath()));
 }
 
 class ApiClient {

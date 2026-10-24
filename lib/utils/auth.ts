@@ -42,3 +42,61 @@ export const isAuthenticated = (): boolean => {
   return !!accessToken;
 };
 
+/** Query param on `/login` for post-auth return path. */
+export const AUTH_RETURN_TO_QUERY = 'next';
+
+const AUTH_PUBLIC_PATH_PREFIXES = [
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/reset-success',
+  '/accept-invite',
+];
+
+/**
+ * Only allow same-origin relative paths (open-redirect safe).
+ * Rejects protocol-relative URLs, absolute URLs, and auth public pages.
+ */
+export const getSafeInternalPath = (raw: string | null | undefined): string | null => {
+  if (!raw) return null;
+
+  let path = raw.trim();
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    /* keep original */
+  }
+
+  if (!path.startsWith('/') || path.startsWith('//') || path.includes('://')) {
+    return null;
+  }
+
+  const pathname = path.split('?')[0]?.split('#')[0] || path;
+  if (AUTH_PUBLIC_PATH_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return null;
+  }
+
+  return path;
+};
+
+/** Build `/login` or `/login?next=...` from an optional return path. */
+export const buildLoginHref = (returnTo?: string | null): string => {
+  const safe = getSafeInternalPath(returnTo);
+  if (!safe) return '/login';
+  return `/login?${AUTH_RETURN_TO_QUERY}=${encodeURIComponent(safe)}`;
+};
+
+/** Current path + search for return-to (client only). */
+export const getCurrentReturnToPath = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return `${window.location.pathname}${window.location.search}`;
+};
+
+/** Resolve post-login destination from `?next=` (falls back to dashboard). */
+export const resolvePostLoginPath = (search?: string | null): string => {
+  const query =
+    search ?? (typeof window !== 'undefined' ? window.location.search : '');
+  const params = new URLSearchParams(query.startsWith('?') ? query.slice(1) : query);
+  return getSafeInternalPath(params.get(AUTH_RETURN_TO_QUERY)) ?? '/dashboard';
+};
+
