@@ -11,6 +11,7 @@ import {
   Bell,
   Settings,
   ScrollText,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Transactions', href: '/transactions', icon: CreditCard },
   { name: 'Withdrawals', href: '/withdrawals', icon: Wallet },
+  { name: 'Reminder', href: '/messages', icon: MessageSquare, permission: PERMISSIONS.SEND_KYC_REMINDERS },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Audit Logs', href: '/audit-logs', icon: ScrollText, permission: PERMISSIONS.VIEW_AUDIT_LOGS },
   { name: 'Settings', href: '/settings', icon: Settings },

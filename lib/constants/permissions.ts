@@ -8,6 +8,7 @@ export const PERMISSIONS = {
   REJECT_KYC: 'reject_kyc',
   APPROVE_UTILITY_BILL: 'approve_utility_bill',
   REJECT_UTILITY_BILL: 'reject_utility_bill',
+  SEND_KYC_REMINDERS: 'send_kyc_reminders',
   VIEW_AML_ALERTS: 'view_aml_alerts',
   MANAGE_AML_ALERTS: 'manage_aml_alerts',
   VIEW_AUDIT_LOGS: 'view_audit_logs',

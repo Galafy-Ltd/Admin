@@ -559,3 +559,58 @@ export interface UnreadCountResponse {
   count: number;
 }
 
+export type KycReminderTargetTier = 'Tier_0' | 'Tier_1' | 'Tier_2';
+export type KycReminderCampaignStatus = 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface KycReminderCatalogItem {
+  messageKey: string;
+  title: string;
+  snippet: string;
+  targetTier: KycReminderTargetTier;
+  recipients: number;
+}
+
+export interface KycReminderCatalogResponse {
+  reminders: KycReminderCatalogItem[];
+}
+
+export interface SendBulkKycReminderRequest {
+  targetTier: KycReminderTargetTier;
+  channels: {
+    email: boolean;
+    inApp: boolean;
+  };
+}
+
+export interface SendBulkKycReminderResponse {
+  success: boolean;
+  message: string;
+  campaignId: string;
+  status: KycReminderCampaignStatus;
+  recipientCount: number;
+}
+
+export interface KycReminderCampaign {
+  id: string;
+  messageTitle: string;
+  messageSnippet: string;
+  targetTier: KycReminderTargetTier | string;
+  channels: {
+    email: boolean;
+    inApp: boolean;
+  };
+  recipients: number;
+  emailSentCount: number;
+  inAppSentCount: number;
+  failedCount: number;
+  status: KycReminderCampaignStatus;
+  errorMessage?: string | null;
+  dateSent: string;
+  completedAt?: string | null;
+}
+
+export interface KycReminderHistoryResponse {
+  campaigns: KycReminderCampaign[];
+  pagination: Pagination;
+}
+

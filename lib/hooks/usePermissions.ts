@@ -26,6 +26,7 @@ export const usePermissions = ({ role }: UsePermissionsProps) => {
         rolePermissions.add(PERMISSIONS.REJECT_UTILITY_BILL);
         rolePermissions.add(PERMISSIONS.RESTRICT_USERS);
         rolePermissions.add(PERMISSIONS.UNRESTRICT_USERS);
+        rolePermissions.add(PERMISSIONS.SEND_KYC_REMINDERS);
         rolePermissions.add(PERMISSIONS.VIEW_AML_ALERTS);
         rolePermissions.add(PERMISSIONS.MANAGE_AML_ALERTS);
         rolePermissions.add(PERMISSIONS.VIEW_AUDIT_LOGS);
@@ -50,6 +51,7 @@ export const usePermissions = ({ role }: UsePermissionsProps) => {
 
       case ROLES.SUPPORT:
         rolePermissions.add(PERMISSIONS.VIEW_USERS);
+        rolePermissions.add(PERMISSIONS.SEND_KYC_REMINDERS);
         break;
 
       case ROLES.VIEW_ONLY:
